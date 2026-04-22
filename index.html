@@ -864,31 +864,49 @@ let state = {
   checkoutUrl: null,
 };
 
-// ── PRICING TABLES ───────────────────────────────────────────────────────────
-const SEASONS_4 = [
-  { name:'Spring',     end:'2026-05-16', prices:{2:289,3:289,4:289,5:339,6:339,7:339,11:669.99,14:749} },
-  { name:'Summer',     end:'2026-06-24', prices:{2:789,3:789,4:789,5:789,6:789,7:789,11:669.99,14:1099} },
-  { name:'July 4th',   end:'2026-07-12', prices:{2:989,3:989,4:989,5:989,6:989,7:989,11:669.99,14:749} },
-  { name:'Peak',       end:'2026-08-12', prices:{2:789,3:789,4:789,5:789,6:789,7:789,11:669.99,14:1489} },
-  { name:'Late Summer',end:null,         prices:{2:299,3:299,4:349,5:349,6:349,7:349,11:999.99,14:689,30:989,60:1389,90:1589} },
-];
-const SEASONS_6 = [
-  { name:'Spring',     end:'2026-05-16', prices:{2:249,3:299,4:349,5:399,6:399,7:399,9:599,10:699,14:699,21:1089} },
-  { name:'Summer',     end:'2026-06-24', prices:{2:1099,3:1099,4:1099,5:1099,6:1099,7:1099,9:1099,10:699,14:1189} },
-  { name:'July 4th',   end:'2026-07-12', prices:{2:1199,3:1199,4:1199,5:1199,6:1199,7:1199,8:1199,9:1099,10:699,14:799} },
-  { name:'Peak',       end:'2026-08-12', prices:{2:889,3:889,4:889,5:889,6:889,7:889,8:889,9:599,10:699,14:1689} },
-  { name:'Late Summer',end:null,         prices:{2:339,3:389,4:439,5:489,6:489,7:489,10:879,14:799,30:1299} },
-];
-const DURS_4 = [2,3,4,5,6,7,11,14,30,60,90];
-const DURS_6 = [2,3,4,5,6,7,8,9,10,14,21,30];
+// ── PRICING — loaded dynamically from API ─────────────────────────────────────
+let pricingData = null; // { seasons, cartTypes, durations }
+
+async function loadPricing() {
+  try {
+    const res = await fetch(`${API}/pricing/public`);
+    pricingData = await res.json();
+  } catch (e) {
+    console.error('Failed to load pricing:', e);
+    pricingData = null;
+  }
+}
+
+function getCartTypeId(cartTypeKey) {
+  if (!pricingData) return null;
+  return pricingData.cartTypes.find(ct => ct.key === cartTypeKey)?.id || null;
+}
 
 function getSeason(dateStr) {
-  const seasons = state.cart_type === '4seat' ? SEASONS_4 : SEASONS_6;
+  if (!pricingData) return null;
   const d = new Date(dateStr + 'T12:00:00');
-  for (const s of seasons) {
-    if (!s.end || d <= new Date(s.end + 'T23:59:59')) return s;
+  for (const s of pricingData.seasons) {
+    const start = new Date(s.start_date + 'T00:00:00');
+    const end   = s.end_date ? new Date(s.end_date + 'T23:59:59') : null;
+    if (d >= start && (!end || d <= end)) return s;
   }
   return null;
+}
+
+function getDurationsForSeason(seasonId, cartTypeKey) {
+  if (!pricingData) return [];
+  const cartTypeId = getCartTypeId(cartTypeKey);
+  return pricingData.durations
+    .filter(d => d.season_id === seasonId && d.cart_type_id === cartTypeId && d.enabled && d.price !== null)
+    .sort((a, b) => a.days - b.days);
+}
+
+function getPriceForDuration(seasonId, cartTypeKey, days) {
+  if (!pricingData) return null;
+  const cartTypeId = getCartTypeId(cartTypeKey);
+  return pricingData.durations.find(
+    d => d.season_id === seasonId && d.cart_type_id === cartTypeId && d.days === days && d.enabled
+  ) || null;
 }
 function addDays(dateStr, n) {
   const d = new Date(dateStr + 'T12:00:00');
@@ -942,17 +960,15 @@ function populateDurations() {
   const dateStr = document.getElementById('date-input').value;
   const sel = document.getElementById('dur-select');
   sel.innerHTML = '<option value="">-- Select duration --</option>';
-  if (!dateStr || !state.cart_type) return;
+  if (!dateStr || !state.cart_type || !pricingData) return;
   const s = getSeason(dateStr);
   if (!s) return;
-  const durs = state.cart_type === '4seat' ? DURS_4 : DURS_6;
-  durs.forEach(d => {
-    const p = s.prices[d];
-    if (p === undefined) return;
-    const label = d===1 ? '1 Day' : `${d} Days`;
+  const durs = getDurationsForSeason(s.id, state.cart_type);
+  durs.forEach(dur => {
+    const label = dur.days === 1 ? '1 Day' : `${dur.days} Days`;
     const opt = document.createElement('option');
-    opt.value = d;
-    opt.textContent = `${label} — ${fmtMoney(p)}`;
+    opt.value = dur.days;
+    opt.textContent = `${label} — ${fmtMoney(dur.price)}`;
     sel.appendChild(opt);
   });
 }
@@ -982,8 +998,9 @@ function onDurChange() {
 
   const s = getSeason(state.start_date);
   if (!s) return;
-  const p = s.prices[state.duration_days];
-  if (p === undefined) return;
+  const durRecord = getPriceForDuration(s.id, state.cart_type, state.duration_days);
+  if (!durRecord || durRecord.price === null) return;
+  const p = durRecord.price;
 
   state.base_price = p;
   state.season = s.name;
@@ -1116,6 +1133,32 @@ function openCheckout() {
 
 // ── INIT ─────────────────────────────────────────────────────────────────────
 document.getElementById('date-input').min = new Date().toISOString().split('T')[0];
+
+// Load pricing from API on page load
+loadPricing().then(() => {
+  // Update "From $X" prices on cart buttons once pricing is loaded
+  if (pricingData) {
+    const today = new Date().toISOString().split('T')[0];
+    const s4 = getSeason(today);
+    const s6 = getSeason(today);
+    if (s4) {
+      const durs4 = getDurationsForSeason(s4.id, '4seat');
+      if (durs4.length > 0) {
+        const min4 = Math.min(...durs4.map(d => d.price));
+        const el4 = document.querySelector('#btn4 .cart-price');
+        if (el4) el4.textContent = `From ${fmtMoney(min4)}`;
+      }
+    }
+    if (s6) {
+      const durs6 = getDurationsForSeason(s6.id, '6seat');
+      if (durs6.length > 0) {
+        const min6 = Math.min(...durs6.map(d => d.price));
+        const el6 = document.querySelector('#btn6 .cart-price');
+        if (el6) el6.textContent = `From ${fmtMoney(min6)}`;
+      }
+    }
+  }
+});
 
 const urlParams = new URLSearchParams(window.location.search);
 if (urlParams.get('booking') === 'success') {
