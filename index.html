@@ -591,6 +591,30 @@
   .step-page { display: none; }
   .step-page.active { display: block; }
 
+  .qty-btn {
+    width: 44px; height: 44px; border-radius: 50%;
+    border: 2px solid var(--border); background: #fff;
+    font-size: 15px; font-weight: 800; cursor: pointer;
+    color: var(--sub); transition: all 0.15s; font-family: 'Nunito', sans-serif;
+  }
+  .qty-btn.qty-active {
+    border-color: var(--brand); background: var(--brand-pale); color: var(--brand-dark);
+    box-shadow: 0 0 0 3px rgba(41,182,246,0.15);
+  }
+
+  /* Cart photo strip */
+  #cart-photo-strip {
+    display: none;
+    background: var(--brand-pale);
+    border-bottom: 1px solid var(--brand-bg);
+    padding: 8px 20px;
+    align-items: center;
+    gap: 12px;
+  }
+  #cart-photo-strip img {
+    height: 50px; width: 80px; object-fit: cover; border-radius: 8px;
+  }
+
   @keyframes fadeIn {
     from { opacity: 0; transform: translateY(8px); }
     to   { opacity: 1; transform: translateY(0); }
@@ -614,9 +638,18 @@
   </div>
 </header>
 
+<!-- CART PHOTO STRIP (shows after cart selected) -->
+<div id="cart-photo-strip">
+  <img id="cart-strip-img" src="" alt="Selected Cart" />
+  <div>
+    <div id="cart-strip-label" style="font-family:'Nunito',sans-serif;font-weight:800;font-size:14px;color:var(--brand-deep);"></div>
+    <div id="cart-strip-qty" style="font-size:12px;color:var(--sub);margin-top:2px;"></div>
+  </div>
+</div>
+
 <!-- HERO -->
 <div class="hero">
-  <h1>Charleston's Best LSV Rentals 🛺</h1>
+  <h1>The Charleston Area's #1 LSV Rental 🛺</h1>
   <p>Street-legal luxury golf carts delivered directly to your door. Book in minutes.</p>
   <div class="hero-pills">
     <div class="hero-pill">🚚 Delivery to your Door</div>
@@ -683,7 +716,18 @@
         </div>
       </div>
     </div>
-    <button class="btn-primary" id="next1" onclick="goStep(2)" disabled>Continue →</button>
+      <!-- Quantity selector -->
+  <div id="qty-selector" style="display:none;margin-top:16px;background:var(--brand-pale);border:1.5px solid #b3e5fc;border-radius:var(--r);padding:14px 16px;">
+    <div style="font-size:12px;font-weight:700;color:var(--sub);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:10px;">How many carts?</div>
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+      <button onclick="selectQty(1)" id="qty-btn-1" class="qty-btn qty-active">1</button>
+      <button onclick="selectQty(2)" id="qty-btn-2" class="qty-btn">2</button>
+      <button onclick="selectQty(3)" id="qty-btn-3" class="qty-btn">3</button>
+      <button onclick="selectQty(4)" id="qty-btn-4" class="qty-btn">4</button>
+      <div style="font-size:12px;color:var(--muted);margin-left:4px;">Delivery fee charged once per trip</div>
+    </div>
+  </div>
+  <button class="btn-primary" id="next1" onclick="goStep(2)" disabled style="margin-top:16px;">Continue →</button>
   </div>
 
   <!-- ══ STEP 2: Dates ══ -->
@@ -842,6 +886,14 @@
           </div>
         </div>
 
+        <div style="display:flex;align-items:flex-start;gap:10px;margin-bottom:16px;padding:12px 14px;background:var(--brand-pale);border:1.5px solid #b3e5fc;border-radius:var(--r);">
+          <input type="checkbox" id="terms-check" style="width:18px;height:18px;margin-top:2px;accent-color:var(--brand);cursor:pointer;flex-shrink:0;"
+            onchange="state.termsAccepted=this.checked; checkStep4();" />
+          <label for="terms-check" style="font-size:13px;color:var(--sub);cursor:pointer;line-height:1.5;">
+            I have read and agree to the <strong style="color:var(--text);">📋 Cart Specs & Rental Overview</strong> above, including the booking requirements and rental policies.
+          </label>
+        </div>
+
         <div id="pay-buttons">
           <button class="btn-primary" id="pay-btn" onclick="handlePay()" disabled>
             🔒 Reserve My Cart — Pay Now
@@ -869,6 +921,14 @@
           <div class="order-line">
             <span id="ol-zone">Delivery</span>
             <span id="ol-del">—</span>
+          </div>
+          <div class="order-line" style="font-size:12px;color:var(--muted);">
+            <span>3% Rental Surcharge</span>
+            <span id="ol-surcharge">—</span>
+          </div>
+          <div class="order-line" style="font-size:12px;color:var(--muted);">
+            <span>9% SC Sales Tax</span>
+            <span id="ol-tax">—</span>
           </div>
           <div class="order-total">
             <span>Total</span>
@@ -904,6 +964,8 @@ let state = {
   arrival_time: null,
   avail: null,
   checkoutUrl: null,
+  termsAccepted: false,
+  quantity: 1,
 };
 
 // ── PRICING — loaded dynamically from API ─────────────────────────────────────
@@ -962,6 +1024,39 @@ function fmtMoney(n) {
   return '$' + parseFloat(n).toLocaleString('en-US', { minimumFractionDigits:2, maximumFractionDigits:2 });
 }
 
+// ── TAX / SURCHARGE RATES ────────────────────────────────────────────────────
+let taxRate = 0.09;
+let surchargeRate = 0.03;
+
+async function loadSettings() {
+  try {
+    const res = await fetch(`${API}/pricing/settings`);
+    const d = await res.json();
+    if (d.tax_rate)       taxRate       = parseFloat(d.tax_rate);
+    if (d.surcharge_rate) surchargeRate = parseFloat(d.surcharge_rate);
+  } catch {}
+}
+
+function calcTotals(basePrice, deliveryFee, qty) {
+  const rental    = basePrice * (qty || 1);
+  const subtotal  = rental + deliveryFee;
+  const surcharge = Math.round(subtotal * surchargeRate * 100) / 100;
+  const tax       = Math.round(subtotal * taxRate * 100) / 100;
+  const total     = Math.round((subtotal + surcharge + tax) * 100) / 100;
+  return { rental, subtotal, surcharge, tax, total };
+}
+
+function updatePricePreview() {
+  if (!state.base_price || !state.duration_days || !state.cart_type) return;
+  const qty = state.quantity || 1;
+  const deliveryFee = state.delivery_fee || 0; // may not be set yet
+  const { rental, subtotal, surcharge, tax, total } = calcTotals(state.base_price, deliveryFee, qty);
+  const label = `${qty > 1 ? qty + 'x ' : ''}${state.duration_days}-day ${state.cart_type==='4seat'?'4-Passenger':'6-Passenger'} rental`;
+  document.getElementById('pp-rental').innerHTML = `${label} <span class="season-tag">${state.season}</span>`;
+  document.getElementById('pp-base').textContent = fmtMoney(rental);
+  document.getElementById('pp-total').textContent = fmtMoney(state.base_price); // before delivery
+}
+
 // ── STEP NAVIGATION ──────────────────────────────────────────────────────────
 let currentStep = 1;
 
@@ -994,7 +1089,33 @@ function selectCart(type) {
   document.getElementById('btn4').classList.toggle('selected', type==='4seat');
   document.getElementById('btn6').classList.toggle('selected', type==='6seat');
   document.getElementById('next1').disabled = false;
+  document.getElementById('qty-selector').style.display = 'block';
+  // Update photo strip
+  const img4 = 'https://golfcart.fun/wp-content/uploads/2023/02/Bintelli-Resized-1-1024x683.webp';
+  const img6 = 'https://golfcart.fun/wp-content/uploads/2023/02/FhNYV8jWIAY3SXF-1-1024x768.webp';
+  const strip = document.getElementById('cart-photo-strip');
+  document.getElementById('cart-strip-img').src = type === '4seat' ? img4 : img6;
+  document.getElementById('cart-strip-label').textContent = type === '4seat' ? '4-Passenger LSV' : '6-Passenger LSV';
+  updateStripQty();
+  strip.style.display = 'flex';
   if (document.getElementById('date-input').value) populateDurations();
+}
+
+function selectQty(n) {
+  state.quantity = n;
+  [1,2,3,4].forEach(i => {
+    const btn = document.getElementById('qty-btn-' + i);
+    btn.classList.toggle('qty-active', i === n);
+  });
+  updateStripQty();
+  updatePricePreview();
+}
+
+function updateStripQty() {
+  const n = state.quantity || 1;
+  const type = state.cart_type;
+  document.getElementById('cart-strip-qty').textContent =
+    n === 1 ? '1 cart selected' : `${n} carts selected · 1 delivery fee`;
 }
 
 // ── STEP 2 ───────────────────────────────────────────────────────────────────
@@ -1047,10 +1168,7 @@ function onDurChange() {
   state.base_price = p;
   state.season = s.name;
 
-  document.getElementById('pp-rental').innerHTML =
-    `${state.duration_days}-day ${state.cart_type==='4seat'?'4-Passenger':'6-Passenger'} rental <span class="season-tag">${s.name}</span>`;
-  document.getElementById('pp-base').textContent = fmtMoney(p);
-  document.getElementById('pp-total').textContent = fmtMoney(p);
+  updatePricePreview();
   document.getElementById('price-preview').className = 'price-preview visible';
 
   document.getElementById('avail-bar').className = 'avail-bar checking';
@@ -1102,22 +1220,28 @@ function checkStep4() {
   const ln = document.getElementById('lname').value.trim();
   const em = document.getElementById('email').value.trim();
   const ph = document.getElementById('phone').value.trim();
-  const ok = fn && ln && em.includes('@') && ph.length >= 7;
+  const ok = fn && ln && em.includes('@') && ph.length >= 7 && state.termsAccepted;
   document.getElementById('pay-btn').disabled = !ok;
 
   if (state.base_price && state.zone) {
-    const total = state.base_price + state.delivery_fee;
+    const qty = state.quantity || 1;
+    const { rental, subtotal, surcharge, tax, total } = calcTotals(state.base_price, state.delivery_fee, qty);
     document.getElementById('order-empty').style.display = 'none';
     document.getElementById('order-lines').style.display = 'block';
-    document.getElementById('ol-cart').textContent =
-      `${state.duration_days}-day ${state.cart_type==='4seat'?'4-Passenger':'6-Passenger'}`;
-    document.getElementById('ol-base').textContent = fmtMoney(state.base_price);
+    const cartLabel = qty > 1
+      ? `${qty}x ${state.duration_days}-day ${state.cart_type==='4seat'?'4-Passenger':'6-Passenger'}`
+      : `${state.duration_days}-day ${state.cart_type==='4seat'?'4-Passenger':'6-Passenger'}`;
+    document.getElementById('ol-cart').textContent = cartLabel;
+    document.getElementById('ol-base').textContent = fmtMoney(rental);
     document.getElementById('ol-zone').textContent = `Delivery to ${state.zone}`;
     document.getElementById('ol-del').textContent = `+${fmtMoney(state.delivery_fee)}`;
+    document.getElementById('ol-surcharge').textContent = `+${fmtMoney(surcharge)}`;
+    document.getElementById('ol-tax').textContent = `+${fmtMoney(tax)}`;
     document.getElementById('ol-total').textContent = fmtMoney(total);
     const end = addDays(state.start_date, state.duration_days);
     document.getElementById('ol-dates').textContent =
       `${fmtDate(state.start_date)} → ${fmtDate(end)}`;
+    state.total_price = total;
   }
 }
 
@@ -1151,6 +1275,7 @@ async function handlePay() {
         customer_phone:       phone,
         sms_opt_in:           sms,
         notes:                notes || null,
+        quantity:             state.quantity || 1,
       }),
     });
     const data = await res.json();
@@ -1176,8 +1301,8 @@ function openCheckout() {
 // ── INIT ─────────────────────────────────────────────────────────────────────
 document.getElementById('date-input').min = new Date().toISOString().split('T')[0];
 
-// Load pricing from API on page load
-loadPricing().then(() => {
+// Load pricing + settings from API on page load
+Promise.all([loadPricing(), loadSettings()]).then(() => {
   // Update "From $X" prices on cart buttons once pricing is loaded
   if (pricingData) {
     const today = new Date().toISOString().split('T')[0];
