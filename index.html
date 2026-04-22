@@ -224,8 +224,18 @@
     box-shadow: 0 0 0 3px rgba(41,182,246,0.15);
   }
   .cart-btn .cart-icon {
-    font-size: 42px;
     margin-bottom: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 80px;
+  }
+  .cart-btn .cart-icon img {
+    width: 100%;
+    max-width: 140px;
+    height: 80px;
+    object-fit: cover;
+    border-radius: 8px;
   }
   .cart-btn .cart-name {
     font-family: 'Nunito', sans-serif;
@@ -609,8 +619,8 @@
   <h1>Charleston's Best LSV Rentals 🛺</h1>
   <p>Street-legal luxury golf carts delivered directly to your door. Book in minutes.</p>
   <div class="hero-pills">
-    <div class="hero-pill">🚚 Free Delivery</div>
-    <div class="hero-pill">🗝 Lockbox Included</div>
+    <div class="hero-pill">🚚 Delivery to your Door</div>
+    <div class="hero-pill">🗝 Extension Cord Included</div>
     <div class="hero-pill">📱 SMS Updates</div>
     <div class="hero-pill">✅ Instant Confirmation</div>
   </div>
@@ -645,18 +655,28 @@
   <div class="step-page active" id="page1">
     <div class="card">
       <div class="card-title">Choose your cart</div>
-      <div class="card-sub">All carts are street-legal LSVs — Bluetooth speakers, lockbox, fully charged.</div>
+      <div class="card-sub">Luxury LSV rentals delivered to your door across the Charleston area.</div>
       <div class="cart-grid">
         <div class="cart-btn" id="btn4" onclick="selectCart('4seat')">
           <div class="selected-badge">✓</div>
-          <div class="cart-icon">🛺</div>
+          <div class="cart-icon">
+            <!-- Replace src with your actual 4-seat Bintelli photo URL -->
+            <img src="https://www.bintelli.com/wp-content/uploads/2023/01/Beyond-4PR-White-1.jpg"
+              onerror="this.outerHTML='<span style=\'font-size:42px\'>🛺</span>'"
+              alt="4-Passenger LSV" />
+          </div>
           <div class="cart-name">4-Passenger</div>
           <div class="cart-desc">Perfect for couples or small families</div>
           <div class="cart-price">From $289</div>
         </div>
         <div class="cart-btn" id="btn6" onclick="selectCart('6seat')">
           <div class="selected-badge">✓</div>
-          <div class="cart-icon">🚗</div>
+          <div class="cart-icon">
+            <!-- Replace src with your actual 6-seat Bintelli photo URL -->
+            <img src="https://www.bintelli.com/wp-content/uploads/2023/01/Beyond-6PR-White-1.jpg"
+              onerror="this.outerHTML='<span style=\'font-size:42px\'>🚐</span>'"
+              alt="6-Passenger LSV" />
+          </div>
           <div class="cart-name">6-Passenger</div>
           <div class="cart-desc">Ideal for larger groups & families</div>
           <div class="cart-price">From $249</div>
@@ -914,7 +934,6 @@ function selectCart(type) {
   document.getElementById('btn4').classList.toggle('selected', type==='4seat');
   document.getElementById('btn6').classList.toggle('selected', type==='6seat');
   document.getElementById('next1').disabled = false;
-  // Reset dur select if already on step 2
   if (document.getElementById('date-input').value) populateDurations();
 }
 
@@ -969,14 +988,12 @@ function onDurChange() {
   state.base_price = p;
   state.season = s.name;
 
-  // Show price preview
   document.getElementById('pp-rental').innerHTML =
     `${state.duration_days}-day ${state.cart_type==='4seat'?'4-Passenger':'6-Passenger'} rental <span class="season-tag">${s.name}</span>`;
   document.getElementById('pp-base').textContent = fmtMoney(p);
   document.getElementById('pp-total').textContent = fmtMoney(p);
   document.getElementById('price-preview').className = 'price-preview visible';
 
-  // Check availability
   document.getElementById('avail-bar').className = 'avail-bar checking';
   document.getElementById('avail-bar').textContent = 'Checking availability…';
 
@@ -1029,7 +1046,6 @@ function checkStep4() {
   const ok = fn && ln && em.includes('@') && ph.length >= 7;
   document.getElementById('pay-btn').disabled = !ok;
 
-  // Update order summary
   if (state.base_price && state.zone) {
     const total = state.base_price + state.delivery_fee;
     document.getElementById('order-empty').style.display = 'none';
@@ -1081,10 +1097,8 @@ async function handlePay() {
     const data = await res.json();
     if (data.checkout_url) {
       state.checkoutUrl = data.checkout_url;
-      // Show link-ready state and hide pay button area
       document.getElementById('link-ready').classList.add('visible');
       document.getElementById('pay-buttons').style.display = 'none';
-      // Auto-redirect on desktop
       window.location.href = data.checkout_url;
     } else {
       throw new Error(data.error || 'Unknown error');
@@ -1103,7 +1117,6 @@ function openCheckout() {
 // ── INIT ─────────────────────────────────────────────────────────────────────
 document.getElementById('date-input').min = new Date().toISOString().split('T')[0];
 
-// Handle success/cancel return from Stripe
 const urlParams = new URLSearchParams(window.location.search);
 if (urlParams.get('booking') === 'success') {
   document.querySelector('.main').innerHTML = `
@@ -1116,9 +1129,6 @@ if (urlParams.get('booking') === 'success') {
       </p>
       <button class="btn-primary" style="margin-top:24px;max-width:280px;" onclick="window.location.href='/'">Book Another Cart</button>
     </div>`;
-}
-if (urlParams.get('booking') === 'cancelled') {
-  // Just show the form normally — no message needed
 }
 </script>
 </body>
