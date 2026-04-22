@@ -728,7 +728,7 @@
     <button class="btn-back" onclick="goStep(2)">← Back</button>
     <div class="card">
       <div class="card-title">Delivery details</div>
-      <div class="card-sub">We deliver right to your rental property — just leave the cart plugged in when done.</div>
+      <div class="card-sub">We deliver right to your door by 4:00 PM. We'll do our best to accommodate early arrivals, but no guarantees.</div>
       <div class="form-group" style="margin-bottom:16px;">
         <label class="form-label">Where would you like it delivered?</label>
         <div class="zone-grid" id="zone-grid">
@@ -1075,7 +1075,7 @@ function checkStep4() {
     document.getElementById('ol-total').textContent = fmtMoney(total);
     const end = addDays(state.start_date, state.duration_days);
     document.getElementById('ol-dates').textContent =
-      `${fmtDate(state.start_date)} → ${fmtDate(end)}\n${state.season} season`;
+      `${fmtDate(state.start_date)} → ${fmtDate(end)}`;
   }
 }
 
