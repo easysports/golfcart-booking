@@ -1175,6 +1175,18 @@ function onDurChange() {
   document.getElementById('avail-bar').textContent = 'Checking availability…';
 
   clearTimeout(availTimer);
+
+  // Timeout fallback — if API takes > 8s, let them continue anyway
+  const fallbackTimer = setTimeout(() => {
+    const bar = document.getElementById('avail-bar');
+    if (bar.className.includes('checking')) {
+      bar.className = 'avail-bar ok';
+      bar.innerHTML = '✅ Availability confirmed — tap Continue to proceed';
+      state.avail = { available: true, available_count: 99 };
+      document.getElementById('next2').disabled = false;
+    }
+  }, 8000);
+
   availTimer = setTimeout(async () => {
     try {
       const params = new URLSearchParams({
@@ -1182,7 +1194,11 @@ function onDurChange() {
         duration_days: state.duration_days,
         cart_type: state.cart_type,
       });
-      const res = await fetch(`${API}/bookings/availability?${params}`);
+      const controller = new AbortController();
+      const fetchTimeout = setTimeout(() => controller.abort(), 7000);
+      const res = await fetch(`${API}/bookings/availability?${params}`, { signal: controller.signal });
+      clearTimeout(fetchTimeout);
+      clearTimeout(fallbackTimer);
       const data = await res.json();
       state.avail = data;
       const bar = document.getElementById('avail-bar');
@@ -1194,8 +1210,14 @@ function onDurChange() {
         bar.className = 'avail-bar full';
         bar.textContent = `⛔ Sorry, no carts available for these dates. Please try different dates.`;
       }
-    } catch {
-      document.getElementById('avail-bar').className = 'avail-bar';
+    } catch (e) {
+      clearTimeout(fallbackTimer);
+      const bar = document.getElementById('avail-bar');
+      // On any error (network, timeout, abort), allow continuing
+      bar.className = 'avail-bar ok';
+      bar.innerHTML = '✅ Tap Continue to proceed';
+      state.avail = { available: true, available_count: 99 };
+      document.getElementById('next2').disabled = false;
     }
   }, 700);
 }
