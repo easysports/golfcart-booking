@@ -1208,7 +1208,7 @@ function onDurChange() {
         document.getElementById('next2').disabled = false;
       } else {
         bar.className = 'avail-bar full';
-        bar.textContent = `⛔ Sorry, no carts available for these dates. Please try different dates.`;
+        bar.textContent = `Sorry, we are fully booked for these dates. Please try different dates.`;
       }
     } catch (e) {
       clearTimeout(fallbackTimer);
