@@ -1134,6 +1134,10 @@ function populateDurations() {
     opt.textContent = `${label} — ${fmtMoney(dur.price)}`;
     sel.appendChild(opt);
   });
+  if (window._urlDays) {
+    const match = [...sel.options].find(o => parseInt(o.value) === window._urlDays);
+    if (match) { sel.value = match.value; window._urlDays = null; onDurChange(); }
+  }
 }
 
 function onDateChange() {
@@ -1325,6 +1329,21 @@ document.getElementById('date-input').min = new Date().toISOString().split('T')[
 
 // Load pricing + settings from API on page load
 Promise.all([loadPricing(), loadSettings()]).then(() => {
+  // Pre-fill from URL params (?location=Isle+of+Palms&date=2026-06-15&days=5)
+  (function() {
+    const p = new URLSearchParams(window.location.search);
+    const loc = p.get('location'), date = p.get('date'), days = parseInt(p.get('days'));
+    if (date) document.getElementById('date-input').value = date;
+    if (days && days > 0) window._urlDays = days;
+    if (loc) {
+      const fees = {
+        'Seabrook Island': 99.99, 'Isle of Palms': 79.99, "Sullivan's Island": 79.99,
+        'Edisto Beach': 99.99, 'Mt Pleasant': 79.99, 'North Charleston': 79.99, 'Other': 99.99
+      };
+      const pill = [...document.querySelectorAll('.zone-pill')].find(el => el.textContent.trim().startsWith(loc));
+      if (pill) selectZone(loc, fees[loc] ?? 99.99, pill);
+    }
+  })();
   // Update "From $X" prices on cart buttons once pricing is loaded
   if (pricingData) {
     const today = new Date().toISOString().split('T')[0];
