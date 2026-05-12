@@ -1333,7 +1333,7 @@ Promise.all([loadPricing(), loadSettings()]).then(() => {
   (function() {
     const p = new URLSearchParams(window.location.search);
     const loc = p.get('location'), date = p.get('date'), days = parseInt(p.get('days'));
-    if (date) document.getElementById('date-input').value = date;
+    if (date) { document.getElementById('date-input').value = date; state.start_date = date; }
     if (days && days > 0) window._urlDays = days;
     if (loc) {
       const fees = {
