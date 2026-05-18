@@ -735,6 +735,7 @@
     <button class="btn-back" onclick="goStep(1)">← Back</button>
     <div class="card">
       <div class="card-title">Pick your dates</div>
+      <div style="margin-bottom: 10px; font-size: 14px; color: #546e7a;">Questions? Call <a href="tel:8438000310" style="color: #29b6f6; font-weight: 700; text-decoration: none;">843-800-0310</a></div>
       <div class="card-sub">Carts are delivered at 4:00 PM on your arrival day and picked up by 10:00 AM on checkout day.</div>
       <div class="form-row">
         <div class="form-group">
@@ -1176,7 +1177,7 @@ function onDurChange() {
   updatePricePreview();
   document.getElementById('price-preview').className = 'price-preview visible';
 
-  document.getElementById('avail-bar').className = 'avail-bar checking'; document.getElementById('avail-bar').style.display = 'none';
+  document.getElementById('avail-bar').className = 'avail-bar checking';
   document.getElementById('avail-bar').textContent = 'Checking availability…';
 
   clearTimeout(availTimer);
@@ -1214,6 +1215,7 @@ function onDurChange() {
         document.getElementById('next2').disabled = false;
       } else {
         bar.className = 'avail-bar full';
+        bar.style.display = '';
         bar.textContent = `Sorry, we are fully booked for these dates. Please try different dates.`;
       }
     } catch (e) {
