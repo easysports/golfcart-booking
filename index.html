@@ -1176,7 +1176,7 @@ function onDurChange() {
   updatePricePreview();
   document.getElementById('price-preview').className = 'price-preview visible';
 
-  document.getElementById('avail-bar').className = 'avail-bar checking';
+  document.getElementById('avail-bar').className = 'avail-bar checking'; document.getElementById('avail-bar').style.display = 'none';
   document.getElementById('avail-bar').textContent = 'Checking availability…';
 
   clearTimeout(availTimer);
@@ -1209,7 +1209,8 @@ function onDurChange() {
       const bar = document.getElementById('avail-bar');
       if (data.available) {
         bar.className = 'avail-bar ok';
-        bar.textContent = `✅ ${data.available_count} carts available for this period`;
+        bar.style.display = 'none';
+        bar.textContent = '';
         document.getElementById('next2').disabled = false;
       } else {
         bar.className = 'avail-bar full';
@@ -1220,7 +1221,8 @@ function onDurChange() {
       const bar = document.getElementById('avail-bar');
       // On any error (network, timeout, abort), allow continuing
       bar.className = 'avail-bar ok';
-      bar.innerHTML = '✅ Tap Continue to proceed';
+      bar.style.display = 'none';
+      bar.innerHTML = '';
       state.avail = { available: true, available_count: 99 };
       document.getElementById('next2').disabled = false;
     }
