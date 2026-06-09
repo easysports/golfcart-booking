@@ -107,6 +107,13 @@
     color: var(--text); background: #fff; transition: border-color 0.15s;
   }
   .field input:focus { outline: none; border-color: var(--brand); }
+  .dob-row { display: grid; grid-template-columns: 1.3fr 1fr 1fr; gap: 8px; }
+  .dob-row select {
+    width: 100%; padding: 13px 10px; border: 1.5px solid var(--border);
+    border-radius: var(--r); font-family: 'Nunito Sans', sans-serif; font-size: 15px;
+    color: var(--text); background: #fff; appearance: none; -webkit-appearance: none; cursor: pointer;
+  }
+  .dob-row select:focus { outline: none; border-color: var(--brand); }
   .row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
   @media (max-width: 440px) { .row2 { grid-template-columns: 1fr; } }
 
@@ -279,7 +286,11 @@
       </div>
       <div class="field">
         <label>Date of birth <span class="req">*</span></label>
-        <input type="date" id="dob" autocomplete="bday" />
+        <div class="dob-row">
+          <select id="dob_month"><option value="">Month</option></select>
+          <select id="dob_day"><option value="">Day</option></select>
+          <select id="dob_year"><option value="">Year</option></select>
+        </div>
         <div class="sig-hint" style="margin-top:6px;">You must be at least 21 years old to rent.</div>
       </div>
       <div class="field" style="margin-bottom:0;">
@@ -397,7 +408,16 @@ async function init() {
 
     show(els.form);
     setupSignaturePad();
-    document.getElementById('dob').max = new Date().toISOString().slice(0, 10);
+    (function(){
+      const mSel = document.getElementById('dob_month');
+      const dSel = document.getElementById('dob_day');
+      const ySel = document.getElementById('dob_year');
+      const months = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+      months.forEach((nm, i) => { const o = document.createElement('option'); o.value = String(i+1).padStart(2,'0'); o.textContent = nm; mSel.appendChild(o); });
+      for (let d = 1; d <= 31; d++) { const o = document.createElement('option'); o.value = String(d).padStart(2,'0'); o.textContent = d; dSel.appendChild(o); }
+      const maxYear = new Date().getFullYear() - 21; // must be 21+
+      for (let y = maxYear; y >= maxYear - 79; y--) { const o = document.createElement('option'); o.value = String(y); o.textContent = y; ySel.appendChild(o); }
+    })();
   } catch (e) {
     els.errorMsg.textContent = 'We could not load your waiver. Please check your connection and try again, or call (843) 800-0310.';
     show(els.errorState);
@@ -500,7 +520,10 @@ async function submit() {
   const last = document.getElementById('last_name').value.trim();
   const email = document.getElementById('email').value.trim();
   const phone = document.getElementById('phone').value.trim();
-  const dob = document.getElementById('dob').value;
+  const dobM = document.getElementById('dob_month').value;
+  const dobD = document.getElementById('dob_day').value;
+  const dobY = document.getElementById('dob_year').value;
+  const dob = (dobM && dobD && dobY) ? `${dobY}-${dobM}-${dobD}` : '';
   const address = document.getElementById('home_address').value.trim();
   const agreed = document.getElementById('agree').checked;
 
