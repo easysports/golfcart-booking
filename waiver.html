@@ -395,7 +395,10 @@ async function init() {
     if (!res.ok) { show(els.errorState); return; }
     const info = await res.json();
 
-    document.getElementById('greeting').textContent = `Hi ${info.first_name || 'there'}!`;
+    const _shared = params.get('shared') === '1';
+    document.getElementById('greeting').textContent = _shared
+      ? `Hi ${info.first_name ? info.first_name + "'s" : 'their'} friend!`
+      : `Hi ${info.first_name || 'there'}!`;
     document.getElementById('greeting-sub').textContent =
       `Please review and sign the waiver for your ${info.cart_label || 'golf cart'} rental.`;
 
@@ -570,7 +573,8 @@ async function submit() {
     const data = await res.json();
     if (!res.ok || !data.ok) throw new Error(data.error || 'Submission failed');
 
-    const link = window.location.href;
+    const _su = new URL(window.location.href); _su.searchParams.set('shared', '1');
+    const link = _su.toString();
     els.shareLink.textContent = link;
     els.successSub.textContent = data.waiver_count > 1
       ? `Your waiver is on file. ${data.waiver_count} drivers have now signed for this booking.`
@@ -589,7 +593,8 @@ async function submit() {
 // ── Copy link ────────────────────────────────────────────────────────
 document.getElementById('copy-btn').addEventListener('click', () => {
   const btn = document.getElementById('copy-btn');
-  navigator.clipboard.writeText(window.location.href).then(() => {
+  const _cu = new URL(window.location.href); _cu.searchParams.set('shared', '1');
+  navigator.clipboard.writeText(_cu.toString()).then(() => {
     btn.textContent = 'Copied!';
     setTimeout(() => { btn.textContent = 'Copy link'; }, 2000);
   });
