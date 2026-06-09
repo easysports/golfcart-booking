@@ -1,0 +1,551 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Sign Your Waiver — GolfCart.Fun</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&family=Nunito+Sans:wght@400;600&display=swap" rel="stylesheet" />
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --brand:      #29b6f6;
+    --brand-dark: #0288d1;
+    --brand-deep: #01579b;
+    --brand-bg:   #e1f5fe;
+    --brand-pale: #f0f9ff;
+    --orange:     #f57c00;
+    --green:      #2e7d32;
+    --text:       #0d1b2a;
+    --sub:        #546e7a;
+    --muted:      #90a4ae;
+    --border:     #cfd8dc;
+    --surface:    #ffffff;
+    --page-bg:    #f0f8ff;
+    --r:          12px;
+    --r-lg:       18px;
+  }
+
+  body {
+    font-family: 'Nunito Sans', sans-serif;
+    background: var(--page-bg);
+    color: var(--text);
+    min-height: 100vh;
+  }
+
+  /* ── HEADER ── */
+  header {
+    background: #fff;
+    border-bottom: 2px solid var(--brand-bg);
+    padding: 14px 24px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    position: sticky;
+    top: 0;
+    z-index: 100;
+    box-shadow: 0 2px 12px rgba(41,182,246,0.08);
+  }
+  .logo-wrap { display: flex; align-items: center; gap: 12px; }
+  .logo-img  { height: 52px; width: auto; }
+  .header-right { font-family: 'Nunito', sans-serif; font-size: 13px; color: var(--sub); }
+  .header-right a { color: var(--brand-dark); text-decoration: none; font-weight: 700; }
+
+  /* ── LAYOUT ── */
+  main { max-width: 560px; margin: 0 auto; padding: 24px 16px 60px; }
+
+  .card {
+    background: #fff;
+    border-radius: var(--r-lg);
+    border: 1px solid var(--border);
+    padding: 24px;
+    margin-bottom: 16px;
+    box-shadow: 0 2px 16px rgba(41,182,246,0.06);
+  }
+  .card-title {
+    font-family: 'Nunito', sans-serif;
+    font-size: 18px; font-weight: 800;
+    color: var(--text); margin-bottom: 4px;
+  }
+  .card-sub { font-size: 13px; color: var(--sub); margin-bottom: 20px; }
+
+  /* greeting hero */
+  .greeting {
+    font-family: 'Nunito', sans-serif;
+    font-weight: 900; font-size: 22px; color: var(--brand-deep);
+    margin-bottom: 6px; letter-spacing: -0.3px;
+  }
+  .greeting-sub { font-size: 14px; color: var(--sub); line-height: 1.5; }
+  .detail-pill {
+    display: inline-block; background: var(--brand-bg); color: var(--brand-deep);
+    font-family: 'Nunito', sans-serif; font-weight: 700; font-size: 13px;
+    padding: 5px 12px; border-radius: 999px; margin: 4px 6px 0 0;
+  }
+
+  /* waiver legal text */
+  .waiver-text {
+    max-height: 220px; overflow-y: auto;
+    border: 1px solid var(--border); border-radius: var(--r);
+    padding: 16px; background: var(--brand-pale);
+    font-size: 13px; line-height: 1.6; color: var(--sub);
+  }
+  .waiver-text h4 { font-family: 'Nunito', sans-serif; color: var(--text); font-size: 14px; margin: 12px 0 4px; }
+  .waiver-text h4:first-child { margin-top: 0; }
+  .waiver-text p { margin-bottom: 10px; }
+
+  /* form */
+  .field { margin-bottom: 16px; }
+  .field label {
+    display: block; font-family: 'Nunito', sans-serif; font-weight: 700;
+    font-size: 13px; color: var(--text); margin-bottom: 6px;
+  }
+  .field label .req { color: var(--orange); }
+  .field input[type="text"], .field input[type="email"], .field input[type="tel"] {
+    width: 100%; padding: 12px 14px; border: 1.5px solid var(--border);
+    border-radius: var(--r); font-family: 'Nunito Sans', sans-serif; font-size: 15px;
+    color: var(--text); background: #fff; transition: border-color 0.15s;
+  }
+  .field input:focus { outline: none; border-color: var(--brand); }
+  .row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  @media (max-width: 440px) { .row2 { grid-template-columns: 1fr; } }
+
+  /* signature pad */
+  .sig-wrap { position: relative; }
+  #sigpad {
+    width: 100%; height: 180px; border: 2px dashed var(--border);
+    border-radius: var(--r); background: #fff; touch-action: none; cursor: crosshair;
+  }
+  .sig-clear {
+    position: absolute; top: 8px; right: 8px;
+    background: #fff; border: 1px solid var(--border); border-radius: 8px;
+    font-family: 'Nunito', sans-serif; font-weight: 700; font-size: 12px;
+    color: var(--sub); padding: 4px 10px; cursor: pointer;
+  }
+  .sig-hint { font-size: 12px; color: var(--muted); margin-top: 6px; }
+
+  /* photo upload */
+  .photo-btn {
+    display: flex; align-items: center; gap: 12px;
+    border: 1.5px solid var(--border); border-radius: var(--r);
+    padding: 14px; cursor: pointer; transition: border-color 0.15s; background: #fff;
+  }
+  .photo-btn:hover { border-color: var(--brand); }
+  .photo-btn .icon { font-size: 24px; }
+  .photo-btn .txt { font-family: 'Nunito', sans-serif; font-weight: 700; font-size: 14px; color: var(--text); }
+  .photo-btn .txt small { display: block; font-weight: 400; font-size: 12px; color: var(--muted); }
+  .photo-btn input { display: none; }
+  .photo-thumb { height: 44px; width: 44px; object-fit: cover; border-radius: 8px; border: 1px solid var(--border); }
+  .photo-btn.done { border-color: var(--green); background: #f1f8f2; }
+  .photo-btn.done .check { color: var(--green); font-weight: 800; margin-left: auto; }
+
+  /* agree */
+  .agree { display: flex; align-items: flex-start; gap: 10px; margin: 4px 0 20px; }
+  .agree input { width: 20px; height: 20px; margin-top: 1px; accent-color: var(--brand); flex-shrink: 0; }
+  .agree label { font-size: 14px; line-height: 1.5; color: var(--text); }
+
+  /* buttons */
+  .btn-primary {
+    width: 100%; padding: 15px; border-radius: var(--r); border: none;
+    background: var(--brand); color: #fff; font-family: 'Nunito', sans-serif;
+    font-size: 16px; font-weight: 800; cursor: pointer;
+    transition: background 0.15s, transform 0.1s; letter-spacing: 0.2px;
+  }
+  .btn-primary:hover:not(:disabled) { background: var(--brand-dark); }
+  .btn-primary:active:not(:disabled) { transform: scale(0.98); }
+  .btn-primary:disabled { background: var(--border); color: var(--muted); cursor: not-allowed; }
+
+  .btn-copy {
+    width: 100%; padding: 13px; border-radius: var(--r); border: 1.5px solid var(--brand);
+    background: #fff; color: var(--brand-dark); font-family: 'Nunito', sans-serif;
+    font-size: 15px; font-weight: 800; cursor: pointer; transition: all 0.15s; margin-top: 12px;
+  }
+  .btn-copy:hover { background: var(--brand-pale); }
+
+  .err-msg { color: #c62828; font-size: 13px; font-weight: 600; margin-top: 12px; text-align: center; min-height: 18px; }
+
+  /* states */
+  #loading, #error-state, #success-state { display: none; text-align: center; padding: 40px 24px; }
+  #loading.visible, #error-state.visible, #success-state.visible { display: block; }
+  #form-state { display: none; }
+  #form-state.visible { display: block; }
+
+  .state-icon {
+    width: 72px; height: 72px; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 36px; margin: 0 auto 20px;
+  }
+  .state-icon.ok  { background: #e8f5e9; }
+  .state-icon.bad { background: #ffebee; }
+  .state-title { font-family: 'Nunito', sans-serif; font-size: 24px; font-weight: 900; margin-bottom: 8px; }
+  .state-title.ok  { color: var(--green); }
+  .state-title.bad { color: #c62828; }
+  .state-sub { font-size: 14px; color: var(--sub); line-height: 1.7; max-width: 400px; margin: 0 auto; }
+
+  .share-box {
+    background: var(--brand-pale); border: 1px solid var(--brand-bg); border-radius: var(--r);
+    padding: 14px; margin: 20px 0 0; word-break: break-all; font-size: 13px; color: var(--brand-deep);
+  }
+
+  .spinner {
+    width: 40px; height: 40px; border: 4px solid var(--brand-bg);
+    border-top-color: var(--brand); border-radius: 50%;
+    margin: 0 auto 16px; animation: spin 0.8s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  footer { text-align: center; padding: 24px; font-size: 12px; color: var(--muted); }
+  footer a { color: var(--brand-dark); text-decoration: none; font-weight: 700; }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo-wrap">
+    <img class="logo-img" src="https://i.imgur.com/J8N2zyr.jpeg" alt="GolfCart.Fun"
+      onerror="this.style.display='none'; document.getElementById('logo-text').style.display='block'" />
+    <div id="logo-text" style="display:none; font-family:'Nunito',sans-serif; font-weight:900; font-size:22px; color:#0288d1; letter-spacing:-0.5px;">
+      GolfCart<span style="color:#f57c00;">.Fun</span>
+    </div>
+  </div>
+  <div class="header-right">Questions? <a href="tel:8438000310">(843) 800-0310</a></div>
+</header>
+
+<main>
+
+  <!-- LOADING -->
+  <div id="loading" class="visible">
+    <div class="spinner"></div>
+    <div class="state-sub">Loading your waiver…</div>
+  </div>
+
+  <!-- ERROR -->
+  <div id="error-state">
+    <div class="state-icon bad">⚠️</div>
+    <div class="state-title bad">Link not valid</div>
+    <div class="state-sub" id="error-msg">This waiver link is invalid or has expired. Please contact us at (843) 800-0310 and we will send you a fresh one.</div>
+  </div>
+
+  <!-- FORM -->
+  <div id="form-state">
+    <div class="card">
+      <div class="greeting" id="greeting">Hi there!</div>
+      <div class="greeting-sub" id="greeting-sub">Please review and sign your rental waiver below.</div>
+      <div id="detail-pills" style="margin-top:10px;"></div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">Rental Liability Waiver</div>
+      <div class="card-sub">Please read carefully before signing.</div>
+      <div class="waiver-text" id="waiver-text">
+        <h4 style="text-align:center; font-size:15px;">Terms and Conditions</h4>
+        <p><strong>1. Definitions.</strong> &ldquo;Agreement&rdquo; means all terms and conditions found on both sides of this form. &ldquo;You&rdquo; or &ldquo;your&rdquo; means the person identified as the customer elsewhere in this Agreement, any person signing this Agreement, any Authorized Driver and any person or organization to whom charges are billed by us at its or the customer's direction. All persons referred to as &ldquo;you&rdquo; or &ldquo;your&rdquo; are jointly and severally bound by this Agreement. &ldquo;We&rdquo;, &ldquo;our&rdquo; or &ldquo;us&rdquo; means the business named on the reverse side of this Agreement. &ldquo;Authorized Driver&rdquo; means the renter and any additional driver listed by us on this Agreement, provided that person has a valid driver's license and is at least age 21. Only Authorized Drivers may operate the Vehicle. &ldquo;Vehicle&rdquo; means the automobile or truck identified in this Agreement and any vehicle we substitute for it, and all its tires, tools, accessories, equipment, keys and vehicle documents. &ldquo;Physical Damage&rdquo; means damage to, or loss of, the Vehicle caused by collision or upset; it does not include comprehensive damage or loss, such as: loss of the Vehicle due to theft; vandalism; act of nature; riot or civil disturbance; hail, flood; or, fire. Physical Damage excludes interior burn holes, window stars or cracks not caused by collision or upset. &ldquo;Loss of use&rdquo; means the loss of our ability to use the Vehicle for any purpose caused by damage or loss during this rental. Loss of use is calculated by multiplying the number of days from the date the Vehicle is damaged or lost until it is repaired or replaced, times the daily rental rate.</p>
+        <p><strong>2. Rental, Indemnity and Warranties.</strong> This is a contract for the rental of the Vehicle. We may repossess the Vehicle at your expense without notice to you, if the Vehicle is abandoned or used in violation of law or this Agreement. You agree to indemnify us, defend us and hold us harmless from all claims, liability, costs and attorney fees we incur resulting from, or arising out of, this rental and your use of the Vehicle. We make no warranties, express, implied or apparent, regarding the vehicle, no warranty of merchantability and no warranty that the vehicle is fit for a particular purpose.</p>
+        <p><strong>3. Condition and Return of Vehicle.</strong> You must return the Vehicle to our rental office on the date and time specified in this Agreement, and in the same condition that you received it, except for ordinary wear. If the Vehicle is returned after closing hours, you remain responsible for the safety of, and any damage to, or loss of, the Vehicle until we inspect it upon our next opening for business. Service to the Vehicle or replacement of parts or accessories during the rental must have our prior approval. You must check and maintain all fluid levels.</p>
+        <p><strong>4. Responsibility for Damage or Loss; Reporting to Police.</strong> You are responsible for all loss or theft of, or damage to, the Vehicle, which includes the cost of repair, or the actual cash retail value of the Vehicle on the date of the loss if the Vehicle is not repairable or if we elect not to repair the vehicle, plus loss of use, diminished value of the Vehicle caused by damage to it or repair of it, and our administrative expenses incurred processing the claim. You must report all accidents or incidents of theft and vandalism to us and the police as soon as you discover them.</p>
+        <p><strong>5. Breach of Agreement:</strong> the acts listed here are prohibited uses of the rental vehicle. Any loss or damage that (a) is caused by anyone who is not an Authorized Driver, or by anyone whose driving license is suspended in any jurisdiction; (b) is caused by anyone under the influence of prescription or non-prescription drugs or alcohol; (c) is caused by anyone who obtained the Vehicle or extended the rental period by giving us false, fraudulent or misleading information; (d) occurs while the Vehicle is used in furtherance of any illegal purpose or under any circumstance that would constitute a violation of law, other than a minor traffic violation; (e) occurs while carrying persons or property for hire or while pushing or towing anything, or in any race, speed test or contest; (f) occurs while teaching anyone to drive; (g) occurs while carrying dangerous or hazardous items or illegal material in or on the Vehicle; (h) occurs outside the geographic limitations indicated on the reverse; (i) occurs while it is loaded beyond its capacity; (j) occurs as a result of driving the Vehicle on unpaved roads; (k) occurs while transporting more persons than the Vehicle has seat belts, or while carrying persons outside the passenger compartment; (l) occurs while transporting children without approved child safety seats as required by law; (m) occurs and the odometer has been tampered with or disconnected; (n) occurs when the vehicle's fluid levels are low, or it is otherwise reasonable to expect you to know that further operation would damage the vehicle; (o) results from inadequately secured cargo; (p) where applicable, is caused by anyone who lacks experience operating a manual transmission; (q) is a result of your willful, wanton or reckless act or misconduct; (r) occurs and you fail to summon the police to any accident involving personal injury or property damage; or, (s) is caused by an animal transported in the Vehicle; breach this agreement. You waive all recourse against us for any criminal reports or prosecutions that we take against you that arise out of your breach of this agreement.</p>
+        <p><strong>6. Insurance.</strong> You are responsible for all damage or loss you cause to others. You agree to provide auto liability, collision and comprehensive insurance covering you, us and the Vehicle. Where state law requires us to provide auto liability insurance, or if you have no auto liability insurance, we provide auto liability insurance (the &ldquo;Policy&rdquo;) that is secondary to any other valid and collectible insurance whether primary, secondary, excess or contingent. The Policy provides bodily injury and property damage liability coverage with limits no higher than minimum levels prescribed by the vehicular financial responsibility laws of the state whose laws apply to the loss. You and we reject PIP, medical payments, no-fault and uninsured and under-insured motorist coverage, where permitted by law. The Policy is void if you violate the terms of this Agreement, or if you fail to cooperate in any loss investigation conducted by us or our insurer.</p>
+        <p><strong>7. Charges.</strong> You will pay us, or the appropriate government authorities, on demand all charges due us under this Agreement, including, but not limited to: (a) time and mileage for the period you keep the Vehicle, or a mileage charged based on our experience if the odometer is tampered with or disconnected; (b) charges for additional drivers; (c) optional products and services you purchased; (d) fuel, if you return the Vehicle with less fuel than when rented; (e) applicable taxes; (f) all parking, traffic and toll violations, fines, penalties, forfeitures, court costs, towing, impound and storage charges and other expenses involving the Vehicle assessed against us or the vehicle, unless these expenses are our fault; (g) $50, plus $5/mile for every mile between the renting location and the place where the Vehicle is returned, repossessed or abandoned, plus all other expenses we incur in locating and recovering the Vehicle if you fail to return it or if we elect to repossess the Vehicle under the terms of this Agreement; (h) all costs, including pre- and post-judgment attorney fees, we incur collecting payment from you or otherwise enforcing our rights under this Agreement; (i) a 2% per month late payment fee, or the maximum amount allowed by law (if less than 2%) on all amounts past due; (j) $50 or the maximum amount permitted by law, whichever is greater, if you pay us with a check returned unpaid for any reason; and (k) a reasonable fee not to exceed $350 to clean the Vehicle if returned substantially less clean than when rented.</p>
+        <p><strong>8. Deposit.</strong> We may use your deposit to pay any amounts owed to us under this Agreement.</p>
+        <p><strong>9. Your Property.</strong> You release us, our agents and employees from all claims for loss of, or damage to, your personal property (including a vehicle) or that of any other person, that we received, handled or stored, or that was left or carried in or on the Vehicle or in any service vehicle or in our offices, whether or not the loss or damage was caused by our negligence or was otherwise our responsibility.</p>
+        <p><strong>10. Modifications.</strong> No term of this Agreement can be waived or modified except by a writing that we have signed. If you wish to extend the rental period, you must return the Vehicle to our rental office for inspection and written amendment by us of the due-in date. This Agreement constitutes the entire agreement between you and us. All prior representations and agreements between you and us regarding this rental are void.</p>
+        <p><strong>11. Miscellaneous.</strong> A waiver by us of any breach of this Agreement is not a waiver of any additional breach or waiver of the performance of your obligations under this Agreement. Our acceptance of payment from you or our failure, refusal or neglect to exercise any of our rights under this Agreement does not constitute a waiver of any other provision of this Agreement. Unless prohibited by law, you release us from any liability for consequential, special or punitive damages in connection with this rental or the reservation of a vehicle. If any provision of this Agreement is deemed void or unenforceable, the remaining provisions are valid and enforceable.</p>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">Your Information</div>
+      <div class="card-sub">All drivers in your group should sign — share this link with them.</div>
+
+      <div class="row2">
+        <div class="field">
+          <label>First name <span class="req">*</span></label>
+          <input type="text" id="first_name" autocomplete="given-name" />
+        </div>
+        <div class="field">
+          <label>Last name <span class="req">*</span></label>
+          <input type="text" id="last_name" autocomplete="family-name" />
+        </div>
+      </div>
+      <div class="row2">
+        <div class="field">
+          <label>Email</label>
+          <input type="email" id="email" autocomplete="email" />
+        </div>
+        <div class="field">
+          <label>Phone</label>
+          <input type="tel" id="phone" autocomplete="tel" />
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">Photos</div>
+      <div class="card-sub">A clear photo of your driver's license and auto-insurance card.</div>
+
+      <div class="field">
+        <label>Driver's license <span class="req">*</span></label>
+        <label class="photo-btn" id="dl-btn">
+          <span class="icon">🪪</span>
+          <span class="txt">Take / upload photo<small id="dl-name">Tap to open camera or choose a file</small></span>
+          <input type="file" id="dl_photo" accept="image/*" capture="environment" />
+        </label>
+      </div>
+
+      <div class="field" style="margin-bottom:0;">
+        <label>Insurance card <span class="req">*</span></label>
+        <label class="photo-btn" id="ins-btn">
+          <span class="icon">📄</span>
+          <span class="txt">Take / upload photo<small id="ins-name">Tap to open camera or choose a file</small></span>
+          <input type="file" id="insurance_photo" accept="image/*" capture="environment" />
+        </label>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">Signature <span class="req" style="color:var(--orange);">*</span></div>
+      <div class="card-sub">Sign with your finger or mouse.</div>
+      <div class="sig-wrap">
+        <canvas id="sigpad"></canvas>
+        <button type="button" class="sig-clear" id="sig-clear">Clear</button>
+      </div>
+      <div class="sig-hint">Draw your signature in the box above.</div>
+    </div>
+
+    <div class="card">
+      <div class="agree">
+        <input type="checkbox" id="agree" />
+        <label for="agree">I have read and agree to the rental liability waiver above, and I confirm the information and photos I provided are accurate.</label>
+      </div>
+      <button class="btn-primary" id="submit-btn">Sign Waiver</button>
+      <div class="err-msg" id="form-err"></div>
+    </div>
+  </div>
+
+  <!-- SUCCESS -->
+  <div id="success-state">
+    <div class="state-icon ok">✓</div>
+    <div class="state-title ok">Signed — thank you!</div>
+    <div class="state-sub" id="success-sub">Your waiver is on file.</div>
+    <div class="card" style="margin-top:24px; text-align:left;">
+      <div class="card-title">Need another driver to sign?</div>
+      <div class="card-sub">Share this same link with anyone else in your group.</div>
+      <div class="share-box" id="share-link"></div>
+      <button class="btn-copy" id="copy-btn">Copy link</button>
+    </div>
+  </div>
+
+</main>
+
+<footer>
+  © 2026 GolfCart.Fun &nbsp;·&nbsp; <a href="tel:8438000310">(843) 800-0310</a>
+</footer>
+
+<script>
+const API = 'https://studops-api.onrender.com';
+const params = new URLSearchParams(window.location.search);
+const TOKEN = params.get('token');
+
+const els = {
+  loading: document.getElementById('loading'),
+  errorState: document.getElementById('error-state'),
+  errorMsg: document.getElementById('error-msg'),
+  form: document.getElementById('form-state'),
+  success: document.getElementById('success-state'),
+  successSub: document.getElementById('success-sub'),
+  shareLink: document.getElementById('share-link'),
+};
+
+function show(stateEl) {
+  [els.loading, els.errorState, els.form, els.success].forEach(e => e.classList.remove('visible'));
+  stateEl.classList.add('visible');
+}
+
+function fmtDate(s) {
+  if (!s) return '';
+  const d = new Date(s + 'T00:00:00');
+  return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+}
+
+// ── Load booking info ────────────────────────────────────────────────
+async function init() {
+  if (!TOKEN) { show(els.errorState); return; }
+  try {
+    const res = await fetch(`${API}/waiver/info?token=${encodeURIComponent(TOKEN)}`);
+    if (!res.ok) { show(els.errorState); return; }
+    const info = await res.json();
+
+    document.getElementById('greeting').textContent = `Hi ${info.first_name || 'there'}!`;
+    document.getElementById('greeting-sub').textContent =
+      `Please review and sign the waiver for your ${info.cart_label || 'golf cart'} rental.`;
+
+    const pills = [];
+    if (info.cart_label) pills.push(info.cart_label);
+    if (info.start_date) pills.push(`${fmtDate(info.start_date)} – ${fmtDate(info.end_date)}`);
+    if (info.zone) pills.push(info.zone);
+    document.getElementById('detail-pills').innerHTML =
+      pills.map(p => `<span class="detail-pill">${p}</span>`).join('');
+
+    show(els.form);
+    setupSignaturePad();
+  } catch (e) {
+    els.errorMsg.textContent = 'We could not load your waiver. Please check your connection and try again, or call (843) 800-0310.';
+    show(els.errorState);
+  }
+}
+
+// ── Signature pad ────────────────────────────────────────────────────
+let sigCanvas, sigCtx, drawing = false, hasSignature = false;
+function setupSignaturePad() {
+  sigCanvas = document.getElementById('sigpad');
+  const ratio = window.devicePixelRatio || 1;
+  const rect = sigCanvas.getBoundingClientRect();
+  sigCanvas.width = rect.width * ratio;
+  sigCanvas.height = rect.height * ratio;
+  sigCtx = sigCanvas.getContext('2d');
+  sigCtx.scale(ratio, ratio);
+  sigCtx.lineWidth = 2.5;
+  sigCtx.lineCap = 'round';
+  sigCtx.lineJoin = 'round';
+  sigCtx.strokeStyle = '#0d1b2a';
+
+  function pos(e) {
+    const r = sigCanvas.getBoundingClientRect();
+    const t = e.touches ? e.touches[0] : e;
+    return { x: t.clientX - r.left, y: t.clientY - r.top };
+  }
+  function start(e) { e.preventDefault(); drawing = true; const p = pos(e); sigCtx.beginPath(); sigCtx.moveTo(p.x, p.y); }
+  function move(e)  { if (!drawing) return; e.preventDefault(); const p = pos(e); sigCtx.lineTo(p.x, p.y); sigCtx.stroke(); hasSignature = true; }
+  function end()    { drawing = false; }
+
+  sigCanvas.addEventListener('mousedown', start);
+  sigCanvas.addEventListener('mousemove', move);
+  window.addEventListener('mouseup', end);
+  sigCanvas.addEventListener('touchstart', start, { passive: false });
+  sigCanvas.addEventListener('touchmove', move, { passive: false });
+  sigCanvas.addEventListener('touchend', end);
+
+  document.getElementById('sig-clear').addEventListener('click', () => {
+    sigCtx.clearRect(0, 0, sigCanvas.width, sigCanvas.height);
+    hasSignature = false;
+  });
+}
+
+// ── Photo capture + client-side resize (max 1280px, JPEG) ────────────
+const photos = { dl: null, insurance: null };
+
+function handlePhoto(inputId, btnId, nameId, key) {
+  const input = document.getElementById(inputId);
+  const btn = document.getElementById(btnId);
+  const nameEl = document.getElementById(nameId);
+  input.addEventListener('change', () => {
+    const file = input.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      const img = new Image();
+      img.onload = () => {
+        const max = 1280;
+        let { width, height } = img;
+        if (width > max || height > max) {
+          if (width > height) { height = Math.round(height * max / width); width = max; }
+          else { width = Math.round(width * max / height); height = max; }
+        }
+        const canvas = document.createElement('canvas');
+        canvas.width = width; canvas.height = height;
+        canvas.getContext('2d').drawImage(img, 0, 0, width, height);
+        photos[key] = canvas.toDataURL('image/jpeg', 0.85);
+
+        // UI: thumbnail + done state
+        btn.classList.add('done');
+        const existing = btn.querySelector('.photo-thumb');
+        if (existing) existing.remove();
+        const thumb = document.createElement('img');
+        thumb.className = 'photo-thumb';
+        thumb.src = photos[key];
+        btn.querySelector('.icon').replaceWith(thumb);
+        nameEl.textContent = 'Photo added — tap to retake';
+        if (!btn.querySelector('.check')) {
+          const c = document.createElement('span');
+          c.className = 'check'; c.textContent = '✓';
+          btn.appendChild(c);
+        }
+      };
+      img.src = reader.result;
+    };
+    reader.readAsDataURL(file);
+  });
+}
+handlePhoto('dl_photo', 'dl-btn', 'dl-name', 'dl');
+handlePhoto('insurance_photo', 'ins-btn', 'ins-name', 'insurance');
+
+// ── Submit ───────────────────────────────────────────────────────────
+document.getElementById('submit-btn').addEventListener('click', submit);
+
+async function submit() {
+  const errEl = document.getElementById('form-err');
+  errEl.textContent = '';
+
+  const first = document.getElementById('first_name').value.trim();
+  const last = document.getElementById('last_name').value.trim();
+  const agreed = document.getElementById('agree').checked;
+
+  if (!first || !last) { errEl.textContent = 'Please enter your first and last name.'; return; }
+  if (!photos.dl) { errEl.textContent = "Please add a photo of your driver's license."; return; }
+  if (!photos.insurance) { errEl.textContent = 'Please add a photo of your insurance card.'; return; }
+  if (!hasSignature) { errEl.textContent = 'Please sign in the signature box.'; return; }
+  if (!agreed) { errEl.textContent = 'Please check the box to agree to the waiver.'; return; }
+
+  const btn = document.getElementById('submit-btn');
+  btn.disabled = true;
+  btn.textContent = 'Submitting…';
+
+  try {
+    const res = await fetch(`${API}/waivers`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        token: TOKEN,
+        first_name: first,
+        last_name: last,
+        email: document.getElementById('email').value.trim() || null,
+        phone: document.getElementById('phone').value.trim() || null,
+        agreed: true,
+        signature: sigCanvas.toDataURL('image/png'),
+        dl_photo: photos.dl,
+        insurance_photo: photos.insurance,
+        user_agent: navigator.userAgent,
+      }),
+    });
+    const data = await res.json();
+    if (!res.ok || !data.ok) throw new Error(data.error || 'Submission failed');
+
+    const link = window.location.href;
+    els.shareLink.textContent = link;
+    els.successSub.textContent = data.waiver_count > 1
+      ? `Your waiver is on file. ${data.waiver_count} drivers have now signed for this booking.`
+      : 'Your waiver is on file.';
+    show(els.success);
+    window.scrollTo(0, 0);
+  } catch (e) {
+    errEl.textContent = e.message === 'Submission failed' || !e.message
+      ? 'Something went wrong. Please try again or call (843) 800-0310.'
+      : e.message;
+    btn.disabled = false;
+    btn.textContent = 'Sign Waiver';
+  }
+}
+
+// ── Copy link ────────────────────────────────────────────────────────
+document.getElementById('copy-btn').addEventListener('click', () => {
+  const btn = document.getElementById('copy-btn');
+  navigator.clipboard.writeText(window.location.href).then(() => {
+    btn.textContent = 'Copied!';
+    setTimeout(() => { btn.textContent = 'Copy link'; }, 2000);
+  });
+});
+
+init();
+</script>
+</body>
+</html>
