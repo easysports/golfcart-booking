@@ -988,23 +988,28 @@ function getCartTypeId(cartTypeKey) {
   return pricingData.cartTypes.find(ct => ct.key === cartTypeKey)?.id || null;
 }
 
-function getSeason(dateStr) {
-  if (!pricingData) return null;
-  const d = new Date(dateStr + 'T12:00:00');
-  for (const s of pricingData.seasons) {
-    const start = new Date(s.start_date + 'T00:00:00');
-    const end   = s.end_date ? new Date(s.end_date + 'T23:59:59') : null;
-    if (d >= start && (!end || d <= end)) return s;
-  }
-  return null;
-}
+const APPROVED_DURATIONS = new Set([2, 3, 4, 5, 6, 7, 14, 30, 60, 90]);
 
 function getDurationsForSeason(seasonId, cartTypeKey) {
   if (!pricingData) return [];
   const cartTypeId = getCartTypeId(cartTypeKey);
   return pricingData.durations
-    .filter(d => d.season_id === seasonId && d.cart_type_id === cartTypeId && d.enabled && d.price !== null)
+    .filter(d => d.season_id === seasonId && d.cart_type_id === cartTypeId && d.enabled && d.price !== null && APPROVED_DURATIONS.has(Number(d.days)))
     .sort((a, b) => a.days - b.days);
+}
+
+// Seasons may be cart-specific. Pick the latest-starting matching season that
+// actually has enabled prices for the selected cart type.
+function getSeason(dateStr, cartTypeKey) {
+  if (!pricingData || !cartTypeKey) return null;
+  const d = new Date(dateStr + 'T12:00:00');
+  return pricingData.seasons
+    .filter(s => {
+      const start = new Date(s.start_date + 'T00:00:00');
+      const end   = s.end_date ? new Date(s.end_date + 'T23:59:59') : null;
+      return d >= start && (!end || d <= end) && getDurationsForSeason(s.id, cartTypeKey).length > 0;
+    })
+    .sort((a, b) => String(b.start_date).localeCompare(String(a.start_date)))[0] || null;
 }
 
 function getPriceForDuration(seasonId, cartTypeKey, days) {
@@ -1126,7 +1131,7 @@ function populateDurations() {
   const sel = document.getElementById('dur-select');
   sel.innerHTML = '<option value="">-- Select duration --</option>';
   if (!dateStr || !state.cart_type || !pricingData) return;
-  const s = getSeason(dateStr);
+  const s = getSeason(dateStr, state.cart_type);
   if (!s) return;
   const durs = getDurationsForSeason(s.id, state.cart_type);
   durs.forEach(dur => {
@@ -1165,7 +1170,7 @@ function onDurChange() {
     return;
   }
 
-  const s = getSeason(state.start_date);
+  const s = getSeason(state.start_date, state.cart_type);
   if (!s) return;
   const durRecord = getPriceForDuration(s.id, state.cart_type, state.duration_days);
   if (!durRecord || durRecord.price === null) return;
@@ -1352,8 +1357,8 @@ Promise.all([loadPricing(), loadSettings()]).then(() => {
   // Update "From $X" prices on cart buttons once pricing is loaded
   if (pricingData) {
     const today = new Date().toISOString().split('T')[0];
-    const s4 = getSeason(today);
-    const s6 = getSeason(today);
+    const s4 = getSeason(today, '4seat');
+    const s6 = getSeason(today, '6seat');
     if (s4) {
       const durs4 = getDurationsForSeason(s4.id, '4seat');
       if (durs4.length > 0) {
