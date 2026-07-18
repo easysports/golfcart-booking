@@ -797,31 +797,21 @@
           <div class="zone-pill" onclick="selectZone('Other',99.99,this)">Other<br><span class="zone-fee">$99.99 delivery</span></div>
         </div>
       </div>
+      <!-- [booking-flow-hotfix-v1] Address matching is the source of truth. -->
       <div class="form-group" id="seabrook-property-group" style="display:none;margin-bottom:14px;">
-        <label class="form-label">Which Seabrook property?</label>
-        <select id="property-select" onchange="onPropertyChange()">
-          <option value="">-- Select property --</option>
-          <optgroup label="Normal / Special">
-            <option>Other / Private Home</option>
-            <option>Sealoft Villas</option>
-          </optgroup>
-          <optgroup label="Gas Cart Required">
-            <option>Beach Club</option><option>Chateau By The Green</option><option>Creekwatch</option>
-            <option>Dunecrest</option><option>Duneloft</option><option>Live Oak</option><option>Marsh Walk</option>
-            <option>Ocean Winds</option><option>Shelter Cove</option><option>St. Christopher Oaks</option><option>Treeloft</option>
-          </optgroup>
-          <optgroup label="No LSV Rentals">
-            <option>Atrium Villas</option><option>Bay Point</option><option>Bohicket Marina Village</option>
-            <option>Golf Shore</option><option>Heron Point</option><option>High Hammock Village (Villas)</option>
-            <option>Pelican Watch</option><option>Racquet Club</option><option>Wedgewood</option>
-          </optgroup>
-        </select>
-        <div class="property-help">The property determines whether an electric cart, gas cart, or no rental is permitted.</div>
+        <div style="padding:12px 14px;border:1px solid #b3e5fc;background:#f3fbff;border-radius:12px;font-size:12px;line-height:1.55;color:var(--sub);">
+          <strong style="color:var(--text);">Seabrook delivery rules</strong><br>
+          Enter the full delivery address. We automatically recognize the neighborhood, including close spellings.<br>
+          <strong>Gas cart required:</strong> Beach Club, Chateau By The Green, Creekwatch, Dunecrest, Duneloft, Live Oak, Marsh Walk, Ocean Winds, Shelter Cove, St. Christopher Oaks and Treeloft.<br>
+          <strong>No LSV rentals:</strong> Atrium Villas, Bay Point, Bohicket Marina Village, Golf Shore, Heron Point, High Hammock, Pelican Watch, Racquet Club and Wedgewood.<br>
+          <strong>Sealoft Villas:</strong> electric or gas is allowed; electric carts must charge in the driveway, never under the house. We do not provide an extension cord and recommend gas.
+        </div>
       </div>
       <div class="form-group" style="margin-bottom:14px;">
         <label class="form-label">Delivery Address</label>
         <input type="text" id="addr-input" oninput="checkStep3()" placeholder="123 Pelican Bay Dr, Seabrook Island, SC 29455" />
         <div id="location-rule" class="location-rule"></div>
+        <div id="location-availability" class="location-rule"></div>
         <div id="location-ack" class="ack-box">
           <input type="checkbox" id="location-ack-input" onchange="onLocationAckChange()" />
           <label for="location-ack-input">I understand that at Sealoft Villas an electric cart must be charged in the driveway, never underneath the house, and GolfCart.Fun does not provide an extension cord.</label>
@@ -1072,6 +1062,36 @@ function fmtDate(dateStr) {
 function fmtMoney(n) {
   return '$' + parseFloat(n).toLocaleString('en-US', { minimumFractionDigits:2, maximumFractionDigits:2 });
 }
+function localISODate(date) {
+  return `${date.getFullYear()}-${String(date.getMonth()+1).padStart(2,'0')}-${String(date.getDate()).padStart(2,'0')}`;
+}
+function tomorrowISODate() {
+  const d = new Date(); d.setHours(12,0,0,0); d.setDate(d.getDate()+1); return localISODate(d);
+}
+function selectedProductLabel(key = state.cart_type) {
+  return key === '4seat' ? '4-Passenger' : key === '6seat_gas' ? '6-Seat Gas' : key === '6seat_wild_dunes' ? '6-Seat Wild Dunes' : '6-Passenger';
+}
+function selectedDateRange() {
+  if (!state.start_date || !state.duration_days) return '';
+  return `${fmtDate(state.start_date)} – ${fmtDate(addDays(state.start_date, state.duration_days))}`;
+}
+const BOOKING_DRAFT_KEY = 'gcf_checkout_draft_v1';
+function readBookingDraft() {
+  try {
+    const draft = JSON.parse(sessionStorage.getItem(BOOKING_DRAFT_KEY) || 'null');
+    return draft && Date.now() - Number(draft.saved_at || 0) < 6 * 60 * 60 * 1000 ? draft : null;
+  } catch { return null; }
+}
+function saveBookingDraft(checkoutStarted = false) {
+  try {
+    const fields = {};
+    ['fname','lname','email','phone','notes','arrival-input','addr-input'].forEach(id => { const el=document.getElementById(id); if(el) fields[id]=el.value; });
+    fields['sms-opt'] = !!document.getElementById('sms-opt')?.checked;
+    fields['terms-check'] = !!document.getElementById('terms-check')?.checked;
+    sessionStorage.setItem(BOOKING_DRAFT_KEY, JSON.stringify({ saved_at:Date.now(), checkout_started:checkoutStarted, state:{...state}, fields }));
+  } catch {}
+}
+function clearBookingDraft() { try { sessionStorage.removeItem(BOOKING_DRAFT_KEY); } catch {} }
 
 // ── TAX / SURCHARGE RATES ────────────────────────────────────────────────────
 let taxRate = 0.09;
@@ -1111,7 +1131,7 @@ let currentStep = 1;
 
 function goStep(n) {
   if (n > 1 && !state.cart_type) return;
-  if (n > 2 && (!state.duration_days || !state.avail?.available)) return;
+  if (n > 2 && !state.duration_days) return;
   if (n > 3 && (!state.zone || !state.delivery_address || !state.location_allowed)) return;
 
   currentStep = n;
@@ -1171,6 +1191,7 @@ function updateStripQty() {
 // ── STEP 2 ───────────────────────────────────────────────────────────────────
 function populateDurations() {
   const dateStr = document.getElementById('date-input').value;
+  if (dateStr) state.start_date = dateStr;
   const sel = document.getElementById('dur-select');
   sel.innerHTML = '<option value="">-- Select duration --</option>';
   if (!dateStr || !state.cart_type || !pricingData) return;
@@ -1202,6 +1223,7 @@ function onDateChange() {
 
 let availTimer = null;
 function onDurChange() {
+  state.start_date = document.getElementById('date-input').value || state.start_date;
   const val = document.getElementById('dur-select').value;
   state.duration_days = val ? parseInt(val) : null;
   state.avail = null;
@@ -1217,66 +1239,20 @@ function onDurChange() {
   if (!s) return;
   const durRecord = getPriceForDuration(s.id, state.cart_type, state.duration_days);
   if (!durRecord || durRecord.price === null) return;
-  const p = durRecord.price;
-
-  state.base_price = p;
+  state.base_price = durRecord.price;
   state.season = s.name;
-
   updatePricePreview();
   document.getElementById('price-preview').className = 'price-preview visible';
 
-  document.getElementById('avail-bar').className = 'avail-bar checking';
-  document.getElementById('avail-bar').textContent = 'Checking availability…';
-
-  clearTimeout(availTimer);
-
-  // Timeout fallback — if API takes > 8s, let them continue anyway
-  const fallbackTimer = setTimeout(() => {
-    const bar = document.getElementById('avail-bar');
-    if (bar.className.includes('checking')) {
-      bar.className = 'avail-bar ok';
-      bar.innerHTML = '✅ Availability confirmed — tap Continue to proceed';
-      state.avail = { available: true, available_count: 99 };
-      document.getElementById('next2').disabled = false;
-    }
-  }, 8000);
-
-  availTimer = setTimeout(async () => {
-    try {
-      const params = new URLSearchParams({
-        start_date: state.start_date,
-        duration_days: state.duration_days,
-        cart_type: state.cart_type,
-      });
-      const controller = new AbortController();
-      const fetchTimeout = setTimeout(() => controller.abort(), 7000);
-      const res = await fetch(`${API}/bookings/availability?${params}`, { signal: controller.signal });
-      clearTimeout(fetchTimeout);
-      clearTimeout(fallbackTimer);
-      const data = await res.json();
-      state.avail = data;
-      const bar = document.getElementById('avail-bar');
-      if (data.available) {
-        bar.className = 'avail-bar ok';
-        bar.style.display = 'none';
-        bar.textContent = '';
-        document.getElementById('next2').disabled = false;
-      } else {
-        bar.className = 'avail-bar full';
-        bar.style.display = '';
-        bar.textContent = `Sorry, we are fully booked for these dates. Please try different dates.`;
-      }
-    } catch (e) {
-      clearTimeout(fallbackTimer);
-      const bar = document.getElementById('avail-bar');
-      // On any error (network, timeout, abort), allow continuing
-      bar.className = 'avail-bar ok';
-      bar.style.display = 'none';
-      bar.innerHTML = '';
-      state.avail = { available: true, available_count: 99 };
-      document.getElementById('next2').disabled = false;
-    }
-  }, 700);
+  // The actual inventory pool depends on the delivery address (standard, gas,
+  // or Wild Dunes), so Step 2 confirms the selection and Step 3 verifies stock.
+  const bar = document.getElementById('avail-bar');
+  bar.className = 'avail-bar ok';
+  bar.style.display = '';
+  bar.textContent = `✅ ${selectedProductLabel()} selected · ${selectedDateRange()} · final availability checked after delivery address`;
+  state.avail = { available: true, preliminary: true };
+  document.getElementById('next2').disabled = false;
+  saveBookingDraft(false);
 }
 
 // ── STEP 3 ───────────────────────────────────────────────────────────────────
@@ -1291,15 +1267,8 @@ function selectZone(name, fee, el) {
   document.querySelectorAll('.zone-pill').forEach(p => p.classList.remove('selected'));
   el.classList.add('selected');
   document.getElementById('seabrook-property-group').style.display = name === 'Seabrook Island' ? 'block' : 'none';
-  document.getElementById('property-select').value = '';
   document.getElementById('location-ack-input').checked = false;
   renderLocationRule(null);
-  checkStep3();
-}
-function onPropertyChange() {
-  state.property_name = document.getElementById('property-select').value || null;
-  state.location_acknowledged = false;
-  document.getElementById('location-ack-input').checked = false;
   checkStep3();
 }
 function onLocationAckChange() {
@@ -1331,8 +1300,8 @@ let locationTimer = null;
 function checkStep3() {
   const addr = document.getElementById('addr-input').value.trim();
   state.delivery_address = addr.length > 5 ? addr : null;
-  if (state.zone === 'Seabrook Island') state.property_name = document.getElementById('property-select').value || null;
-  const baseReady = !!(state.zone && state.delivery_address && state.cart_type && state.start_date && state.duration_days && (state.zone !== 'Seabrook Island' || state.property_name));
+  state.property_name = null;
+  const baseReady = !!(state.zone && state.delivery_address && state.cart_type && state.start_date && state.duration_days);
   state.location_allowed = false;
   document.getElementById('next3').disabled = true;
   clearTimeout(locationTimer);
@@ -1354,6 +1323,9 @@ function checkStep3() {
       state.location_rule = rule;
       state.resolved_cart_type = rule.resolved_cart_type || state.cart_type;
       renderLocationRule(rule);
+      const availabilityBox = document.getElementById('location-availability');
+      availabilityBox.className = 'location-rule';
+      availabilityBox.textContent = '';
       if (!rule.allowed) return;
 
       const ap = new URLSearchParams({
@@ -1361,7 +1333,6 @@ function checkStep3() {
         duration_days: state.duration_days,
         cart_type: state.resolved_cart_type || state.cart_type,
         zone: state.zone || '',
-        property_name: state.property_name || '',
         delivery_address: state.delivery_address || '',
         location_acknowledged: String(!!state.location_acknowledged),
       });
@@ -1369,10 +1340,17 @@ function checkStep3() {
       const availability = await ar.json();
       state.avail = availability;
       state.location_allowed = !!availability.available;
-      if (!availability.available) {
-        renderLocationRule({ allowed:false, rule:'inventory', message: availability.error || `No ${displayProductName(state.resolved_cart_type)} carts are available for those dates.` });
+      const label = displayProductName(state.resolved_cart_type || state.cart_type).replace(' LSV','');
+      const range = selectedDateRange();
+      if (availability.available) {
+        availabilityBox.className = 'location-rule info';
+        availabilityBox.textContent = `✅ ${label} selected · ${range} · ${availability.available_count} available`;
+      } else {
+        availabilityBox.className = 'location-rule block';
+        availabilityBox.textContent = availability.error || `No ${label} carts are available for ${range}.`;
       }
       document.getElementById('next3').disabled = !state.location_allowed;
+      saveBookingDraft(false);
     } catch (e) {
       renderLocationRule({ allowed:false, rule:'error', message:'We could not verify this location. Please try again or call (843) 800-0310.' });
     }
@@ -1433,8 +1411,9 @@ async function handlePay() {
         start_date:           state.start_date,
         duration_days:        state.duration_days,
         zone:                 state.zone,
-        property_name:        state.property_name,
+        property_name:        null,
         location_acknowledged: !!state.location_acknowledged,
+        return_url:            `${window.location.origin}${window.location.pathname}`,
         delivery_address:     state.delivery_address,
         arrival_time:         arriv || null,
         customer_first_name:  fn,
@@ -1449,6 +1428,7 @@ async function handlePay() {
     const data = await res.json();
     if (data.checkout_url) {
       state.checkoutUrl = data.checkout_url;
+      saveBookingDraft(true);
       document.getElementById('link-ready').classList.add('visible');
       document.getElementById('pay-buttons').style.display = 'none';
       window.location.href = data.checkout_url;
@@ -1466,13 +1446,52 @@ function openCheckout() {
   if (state.checkoutUrl) window.location.href = state.checkoutUrl;
 }
 
+function restoreCheckoutDraft() {
+  const draft = readBookingDraft();
+  if (!draft?.checkout_started || !draft.state?.cart_type) return false;
+  const saved = draft.state;
+  selectCart(saved.cart_type);
+  selectQty(Number(saved.quantity) || 1);
+  document.getElementById('date-input').value = saved.start_date || firstBookableDate;
+  state.start_date = saved.start_date || firstBookableDate;
+  populateDurations();
+  if (saved.duration_days) {
+    document.getElementById('dur-select').value = String(saved.duration_days);
+    onDurChange();
+  }
+  if (saved.zone) {
+    const pill = [...document.querySelectorAll('.zone-pill')].find(el => el.textContent.trim().startsWith(saved.zone));
+    if (pill) selectZone(saved.zone, Number(saved.delivery_fee) || 99.99, pill);
+  }
+  state = { ...state, ...saved, location_allowed:true, avail:saved.avail || {available:true} };
+  const fields = draft.fields || {};
+  Object.entries(fields).forEach(([id,value]) => {
+    const el=document.getElementById(id); if(!el) return;
+    if (el.type === 'checkbox') el.checked = !!value; else el.value = value ?? '';
+  });
+  state.delivery_address = fields['addr-input'] || saved.delivery_address || '';
+  state.termsAccepted = !!fields['terms-check'];
+  goStep(4);
+  document.getElementById('link-ready').classList.add('visible');
+  document.getElementById('pay-buttons').style.display = 'none';
+  const title = document.querySelector('#link-ready .link-ready-title');
+  if (title) title.textContent = 'Your booking is saved — resume secure checkout';
+  setTimeout(checkStep3, 50);
+  return true;
+}
+
 // ── INIT ─────────────────────────────────────────────────────────────────────
-document.getElementById('date-input').min = new Date().toISOString().split('T')[0];
+const firstBookableDate = tomorrowISODate();
+document.getElementById('date-input').min = firstBookableDate;
+document.getElementById('date-input').value = firstBookableDate;
+state.start_date = firstBookableDate;
 
 // Load pricing + settings from API on page load
 Promise.all([loadPricing(), loadSettings()]).then(() => {
+  const query = new URLSearchParams(window.location.search);
+  const restored = query.get('booking') !== 'success' && restoreCheckoutDraft();
   // Pre-fill from URL params (?location=Isle+of+Palms&date=2026-06-15&days=5)
-  (function() {
+  if (!restored) (function() {
     const p = new URLSearchParams(window.location.search);
     const loc = p.get('location'), date = p.get('date'), days = parseInt(p.get('days'));
     if (date) { document.getElementById('date-input').value = date; state.start_date = date; }
@@ -1512,6 +1531,7 @@ Promise.all([loadPricing(), loadSettings()]).then(() => {
 
 const urlParams = new URLSearchParams(window.location.search);
 if (urlParams.get('booking') === 'success') {
+  clearBookingDraft();
   document.querySelector('.main').innerHTML = `
     <div class="card success-card visible">
       <div class="success-icon">🎉</div>
