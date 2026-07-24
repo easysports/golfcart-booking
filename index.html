@@ -1,4 +1,4 @@
-<!DOCTYPE html> 
+<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8" />
@@ -278,7 +278,28 @@
     gap: 14px;
     margin-bottom: 16px;
   }
-  @media (max-width: 480px) {
+
+  /* Patch 3.9C two-month live-price calendar */
+  .booking-calendar { margin:16px 0; border:1px solid #cfe3ef; border-radius:16px; padding:14px; background:#fbfdff; }
+  .calendar-toolbar { display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom:10px; }
+  .calendar-months { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:18px; }
+  .calendar-month-title { text-align:center; font-weight:900; color:var(--brand-deep); margin-bottom:8px; }
+  .calendar-grid { display:grid; grid-template-columns:repeat(7,1fr); gap:4px; }
+  .calendar-weekday { text-align:center; font-size:10px; font-weight:800; color:var(--muted); padding:4px 0; }
+  .calendar-day { min-height:48px; border:1px solid #d9e7ef; background:#fff; border-radius:9px; cursor:pointer; padding:5px; text-align:left; color:var(--text); }
+  .calendar-day:hover { border-color:#29b6f6; transform:translateY(-1px); }
+  .calendar-day.selected { outline:3px solid #29b6f6; border-color:#0288d1; }
+  .calendar-day.disabled { opacity:.32; cursor:not-allowed; background:#eef2f4; }
+  .calendar-day.blank { visibility:hidden; }
+  .calendar-date-num { font-weight:900; font-size:12px; }
+  .calendar-price { display:block; font-size:9px; margin-top:5px; font-weight:800; }
+  .price-tier-low { background:#dcfce7; } .price-tier-mid { background:#fef3c7; } .price-tier-high { background:#fee2e2; }
+  .calendar-legend { display:flex; gap:10px; flex-wrap:wrap; margin-top:10px; font-size:10px; color:var(--sub); }
+  .calendar-legend i { width:12px;height:12px;border-radius:3px;display:inline-block;vertical-align:-2px;margin-right:3px; }
+  .pricing-fatal { display:none;margin:12px 0;padding:12px;border-radius:10px;background:#fff1f2;border:1px solid #fecdd3;color:#9f1239;font-weight:800; }
+  .pricing-fatal.visible { display:block; }
+  @media(max-width:760px){ .calendar-months{grid-template-columns:1fr}.calendar-month:nth-child(2){display:none}.calendar-day{min-height:44px}.booking-calendar{padding:10px} }
+@media (max-width: 480px) {
     .form-row { grid-template-columns: 1fr; }
     .cart-grid { grid-template-columns: 1fr 1fr; }
   }
@@ -750,11 +771,12 @@
     <div class="card">
       <div class="card-title" id="content-dates-title">Pick your dates</div>
       <div style="margin-bottom: 10px; font-size: 14px; color: #546e7a;">Questions? Call <a href="tel:8438000310" style="color: #29b6f6; font-weight: 700; text-decoration: none;">843-800-0310</a></div>
-      <div class="card-sub" id="content-dates-subtitle">Carts are delivered at 4:00 PM on your arrival day and picked up by 10:00 AM on checkout day.</div>
+      <div class="card-sub" id="content-dates-subtitle">Carts are delivered at 4:00 PM on your arrival day and picked up between 8:00–10:00 AM on checkout day.</div>
       <div class="form-row">
         <div class="form-group">
           <label class="form-label">Arrival Date</label>
-          <input type="date" id="date-input" oninput="onDateChange()" />
+          <input type="date" id="date-input" oninput="onDateChange()" style="position:absolute;left:-10000px;width:1px;height:1px;" aria-hidden="true" />
+          <div id="chosen-date-label" style="padding:12px;border:1px solid #d8e5ed;border-radius:10px;background:#fff;font-weight:800;">Choose a date below</div>
         </div>
         <div class="form-group">
           <label class="form-label">Duration</label>
@@ -762,6 +784,12 @@
             <option value="">-- Select --</option>
           </select>
         </div>
+      </div>
+      <div class="pricing-fatal" id="pricing-fatal">Live pricing is temporarily unavailable. Please call 843-800-0310; checkout is disabled to prevent an incorrect price.</div>
+      <div class="booking-calendar" id="booking-calendar">
+        <div class="calendar-toolbar"><button type="button" class="btn-back" onclick="shiftCalendar(-1)">← Earlier</button><strong>Live availability & pricing</strong><button type="button" class="btn-back" onclick="shiftCalendar(1)">Later →</button></div>
+        <div class="calendar-months" id="calendar-months"></div>
+        <div class="calendar-legend"><span><i class="price-tier-low"></i>Lower</span><span><i class="price-tier-mid"></i>Mid</span><span><i class="price-tier-high"></i>Higher</span><span>Price shown is the selected duration, or the lowest enabled duration before one is selected.</span></div>
       </div>
       <div class="avail-bar" id="avail-bar">Checking availability…</div>
       <div class="price-preview" id="price-preview">
@@ -1045,17 +1073,27 @@ async function loadPublishedContent() {
 
 // ── PRICING — loaded dynamically from API ─────────────────────────────────────
 let pricingData = null; // { seasons, cartTypes, durations }
+let pricingLoadError = "";
+let calendarMonthOffset = 0;
 // SCHEDULEFLEET_PATCH_39B key/id contracts; never map by label/order
 const CART_TYPE_IDS = Object.freeze({"4seat":"d81d5795-4e32-482d-8755-da32e84a15e4","6seat":"9717735e-96d9-4031-932d-53294ce3a733","6seat_gas":"e269aa19-5151-4c43-9b42-a5a1b26e3fef","6seat_wild_dunes":"33d0edab-ad75-4c97-bd4c-b8f9df2ec71f"});
 
 async function loadPricing() {
   try {
     const res = await fetch(`${API}/pricing/public?ts=${Date.now()}`, { cache: 'no-store' });
-    pricingData = await res.json();
-    for (const [key,id] of Object.entries(CART_TYPE_IDS)) { const row=pricingData.cartTypes?.find(ct=>ct.key===key); if(!row||row.id!==id) throw new Error(`Published pricing cart-type mismatch for ${key}`); }
+    const payload = await res.json();
+    if (!res.ok) throw new Error(payload.error || `Pricing HTTP ${res.status}`);
+    for (const [key,id] of Object.entries(CART_TYPE_IDS)) {
+      const row=payload.cartTypes?.find(ct=>ct.key===key);
+      if(!row||row.id!==id) throw new Error(`Published pricing cart-type mismatch for ${key}`);
+      if (payload.cart_type_ids && payload.cart_type_ids[key] !== id) throw new Error(`Server pricing contract mismatch for ${key}`);
+    }
+    pricingData = payload; pricingLoadError = "";
   } catch (e) {
     console.error('Failed to load pricing:', e);
-    pricingData = null;
+    pricingData = null; pricingLoadError = e.message || 'Live pricing unavailable';
+    const fatal=document.getElementById('pricing-fatal'); if(fatal) fatal.classList.add('visible');
+    ['next1','next2','next3','pay-btn'].forEach(id=>{const el=document.getElementById(id);if(el)el.disabled=true;});
   }
 }
 
@@ -1213,6 +1251,7 @@ function selectCart(type) {
   strip.style.display = 'flex';
   if (document.getElementById('date-input').value) populateDurations();
   if (state.zone) checkStep3();
+  renderBookingCalendar();
 }
 
 function selectQty(n) {
@@ -1230,6 +1269,40 @@ function updateStripQty() {
   const type = state.cart_type;
   document.getElementById('cart-strip-qty').textContent =
     n === 1 ? '1 cart selected' : `${n} carts selected · 1 delivery fee`;
+}
+
+
+function calendarPriceForDate(dateStr) {
+  if (!pricingData || !state.cart_type) return null;
+  const season=getSeason(dateStr,state.cart_type); if(!season) return null;
+  const durations=getDurationsForSeason(season.id,state.cart_type);
+  const selected=Number(document.getElementById('dur-select')?.value || state.duration_days || 0);
+  const row=selected ? durations.find(d=>Number(d.days)===selected) : durations.slice().sort((a,b)=>Number(a.price)-Number(b.price))[0];
+  return row ? Number(row.price) : null;
+}
+function selectCalendarDate(dateStr) {
+  const input=document.getElementById('date-input'); input.value=dateStr;
+  const label=document.getElementById('chosen-date-label'); if(label) label.textContent=fmtDate(dateStr);
+  onDateChange(); renderBookingCalendar();
+}
+function shiftCalendar(delta){ calendarMonthOffset += delta; renderBookingCalendar(); }
+function renderBookingCalendar(){
+  const host=document.getElementById('calendar-months'); if(!host) return;
+  if(!pricingData || !state.cart_type){ host.innerHTML='<div style="grid-column:1/-1;padding:18px;text-align:center;color:#64748b">Select a cart to view live date prices.</div>'; return; }
+  const today=new Date(); today.setHours(12,0,0,0); today.setDate(today.getDate()+1);
+  const base=new Date(today.getFullYear(),today.getMonth()+calendarMonthOffset,1,12);
+  const all=[];
+  for(let m=0;m<2;m++){ const start=new Date(base.getFullYear(),base.getMonth()+m,1,12); const days=new Date(start.getFullYear(),start.getMonth()+1,0).getDate(); for(let d=1;d<=days;d++){const x=new Date(start.getFullYear(),start.getMonth(),d,12);const iso=localISODate(x);const p=calendarPriceForDate(iso);if(p!=null)all.push(p);} }
+  const min=all.length?Math.min(...all):0,max=all.length?Math.max(...all):0;
+  host.innerHTML='';
+  for(let m=0;m<2;m++){
+    const start=new Date(base.getFullYear(),base.getMonth()+m,1,12), days=new Date(start.getFullYear(),start.getMonth()+1,0).getDate();
+    const wrap=document.createElement('div');wrap.className='calendar-month';
+    wrap.innerHTML=`<div class="calendar-month-title">${start.toLocaleDateString('en-US',{month:'long',year:'numeric'})}</div><div class="calendar-grid">${['Sun','Mon','Tue','Wed','Thu','Fri','Sat'].map(x=>`<div class="calendar-weekday">${x}</div>`).join('')}</div>`;
+    const grid=wrap.querySelector('.calendar-grid'); for(let i=0;i<start.getDay();i++){const b=document.createElement('button');b.className='calendar-day blank';grid.appendChild(b);}
+    for(let d=1;d<=days;d++){const x=new Date(start.getFullYear(),start.getMonth(),d,12),iso=localISODate(x),p=calendarPriceForDate(iso);const btn=document.createElement('button');btn.type='button';btn.className='calendar-day';const disabled=x<today||p==null;if(disabled)btn.classList.add('disabled');if(iso===state.start_date)btn.classList.add('selected');if(p!=null&&max>min){const r=(p-min)/(max-min);btn.classList.add(r<.34?'price-tier-low':r<.67?'price-tier-mid':'price-tier-high');}else if(p!=null)btn.classList.add('price-tier-low');btn.innerHTML=`<span class="calendar-date-num">${d}</span>${p!=null?`<span class="calendar-price">${fmtMoney(p)}</span>`:''}`;if(!disabled)btn.onclick=()=>selectCalendarDate(iso);grid.appendChild(btn);}
+    host.appendChild(wrap);
+  }
 }
 
 // ── STEP 2 ───────────────────────────────────────────────────────────────────
@@ -1263,6 +1336,7 @@ function onDateChange() {
   document.getElementById('price-preview').className = 'price-preview';
   document.getElementById('next2').disabled = true;
   populateDurations();
+  renderBookingCalendar();
 }
 
 let availTimer = null;
@@ -1297,6 +1371,7 @@ function onDurChange() {
   state.avail = { available: true, preliminary: true };
   document.getElementById('next2').disabled = false;
   saveBookingDraft(false);
+  renderBookingCalendar();
 }
 
 // ── STEP 3 ───────────────────────────────────────────────────────────────────
@@ -1549,6 +1624,7 @@ Promise.all([loadPricing(), loadSettings(), loadPublishedContent()]).then(() => 
       if (pill) selectZone(loc, fees[loc] ?? 99.99, pill);
     }
   })();
+  renderBookingCalendar();
   // Update "From $X" prices on cart buttons once pricing is loaded
   if (pricingData) {
     const today = new Date().toISOString().split('T')[0];
