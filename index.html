@@ -279,26 +279,34 @@
     margin-bottom: 16px;
   }
 
-  /* Patch 3.9C two-month live-price calendar */
-  .booking-calendar { margin:16px 0; border:1px solid #cfe3ef; border-radius:16px; padding:14px; background:#fbfdff; }
-  .calendar-toolbar { display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom:10px; }
-  .calendar-months { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:18px; }
-  .calendar-month-title { text-align:center; font-weight:900; color:var(--brand-deep); margin-bottom:8px; }
-  .calendar-grid { display:grid; grid-template-columns:repeat(7,1fr); gap:4px; }
-  .calendar-weekday { text-align:center; font-size:10px; font-weight:800; color:var(--muted); padding:4px 0; }
-  .calendar-day { min-height:48px; border:1px solid #d9e7ef; background:#fff; border-radius:9px; cursor:pointer; padding:5px; text-align:left; color:var(--text); }
-  .calendar-day:hover { border-color:#29b6f6; transform:translateY(-1px); }
-  .calendar-day.selected { outline:3px solid #29b6f6; border-color:#0288d1; }
-  .calendar-day.disabled { opacity:.32; cursor:not-allowed; background:#eef2f4; }
-  .calendar-day.blank { visibility:hidden; }
-  .calendar-date-num { font-weight:900; font-size:12px; }
-  .calendar-price { display:block; font-size:9px; margin-top:5px; font-weight:800; }
+  /* Patch 3.9C.1 clean two-month live-price calendar */
+  .booking-calendar { margin:18px 0; border:1px solid #cfe3ef; border-radius:18px; padding:16px; background:#fbfdff; overflow:hidden; box-shadow:0 8px 24px rgba(13,71,108,.05); }
+  .calendar-toolbar { display:grid; grid-template-columns:auto 1fr auto; align-items:center; gap:12px; margin-bottom:14px; }
+  .calendar-toolbar-title { text-align:center; }
+  .calendar-toolbar-title strong { display:block; font-size:16px; color:var(--brand-deep); }
+  .calendar-toolbar-title span { display:block; margin-top:3px; font-size:10px; color:var(--muted); font-weight:650; }
+  .calendar-nav { border:1px solid #cfe3ef; background:#fff; color:#0277bd; border-radius:999px; padding:8px 12px; font-weight:850; cursor:pointer; }
+  .calendar-nav:hover { border-color:#29b6f6; background:#f0f9ff; }
+  .calendar-months { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:16px; min-width:0; }
+  .calendar-month { min-width:0; border:1px solid #e2edf3; border-radius:14px; background:#fff; padding:12px; overflow:hidden; }
+  .calendar-month-title { text-align:center; font-weight:900; color:var(--brand-deep); margin:1px 0 10px; font-size:15px; }
+  .calendar-grid { display:grid; grid-template-columns:repeat(7,minmax(0,1fr)); gap:5px; width:100%; min-width:0; }
+  .calendar-weekday { min-width:0; text-align:center; font-size:9px; font-weight:850; color:var(--muted); padding:3px 0 5px; text-transform:uppercase; }
+  .calendar-day { appearance:none; width:100%; min-width:0; min-height:54px; box-sizing:border-box; border:1px solid #d9e7ef; background:#fff; border-radius:9px; cursor:pointer; padding:6px 4px; text-align:left; color:var(--text); transition:.12s ease; overflow:hidden; }
+  .calendar-day:hover { border-color:#29b6f6; transform:translateY(-1px); box-shadow:0 4px 12px rgba(2,136,209,.12); }
+  .calendar-day.selected { outline:3px solid rgba(41,182,246,.35); border:2px solid #0288d1; background:#e0f2fe !important; }
+  .calendar-day.disabled { opacity:.42; cursor:not-allowed; background:#f1f5f7 !important; box-shadow:none; transform:none; }
+  .calendar-day.blank { visibility:hidden; pointer-events:none; }
+  .calendar-date-num { display:block; font-weight:900; font-size:12px; line-height:1; }
+  .calendar-price { display:block; font-size:9px; margin-top:7px; font-weight:850; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .calendar-price.from::before { content:'from '; font-size:7px; font-weight:700; opacity:.72; }
   .price-tier-low { background:#dcfce7; } .price-tier-mid { background:#fef3c7; } .price-tier-high { background:#fee2e2; }
-  .calendar-legend { display:flex; gap:10px; flex-wrap:wrap; margin-top:10px; font-size:10px; color:var(--sub); }
-  .calendar-legend i { width:12px;height:12px;border-radius:3px;display:inline-block;vertical-align:-2px;margin-right:3px; }
+  .calendar-legend { display:flex; align-items:center; gap:12px; flex-wrap:wrap; margin-top:12px; padding-top:11px; border-top:1px solid #e2edf3; font-size:10px; color:var(--sub); }
+  .calendar-legend i { width:11px;height:11px;border-radius:3px;display:inline-block;vertical-align:-2px;margin-right:4px;border:1px solid rgba(15,23,42,.06); }
+  .calendar-help { margin-left:auto; color:#64748b; }
   .pricing-fatal { display:none;margin:12px 0;padding:12px;border-radius:10px;background:#fff1f2;border:1px solid #fecdd3;color:#9f1239;font-weight:800; }
   .pricing-fatal.visible { display:block; }
-  @media(max-width:760px){ .calendar-months{grid-template-columns:1fr}.calendar-month:nth-child(2){display:none}.calendar-day{min-height:44px}.booking-calendar{padding:10px} }
+  @media(max-width:760px){ .calendar-months{grid-template-columns:1fr}.calendar-month:nth-child(2){display:none}.calendar-day{min-height:50px}.booking-calendar{padding:11px}.calendar-toolbar-title span{display:none}.calendar-nav{padding:8px 10px}.calendar-help{width:100%;margin-left:0}.calendar-month{padding:9px} }
 @media (max-width: 480px) {
     .form-row { grid-template-columns: 1fr; }
     .cart-grid { grid-template-columns: 1fr 1fr; }
@@ -787,9 +795,9 @@
       </div>
       <div class="pricing-fatal" id="pricing-fatal">Live pricing is temporarily unavailable. Please call 843-800-0310; checkout is disabled to prevent an incorrect price.</div>
       <div class="booking-calendar" id="booking-calendar">
-        <div class="calendar-toolbar"><button type="button" class="btn-back" onclick="shiftCalendar(-1)">← Earlier</button><strong>Live availability & pricing</strong><button type="button" class="btn-back" onclick="shiftCalendar(1)">Later →</button></div>
+        <div class="calendar-toolbar"><button type="button" class="calendar-nav" onclick="shiftCalendar(-1)">← Earlier</button><div class="calendar-toolbar-title"><strong>Choose your arrival date</strong><span>Prices update from the live published pricing calendar</span></div><button type="button" class="calendar-nav" onclick="shiftCalendar(1)">Later →</button></div>
         <div class="calendar-months" id="calendar-months"></div>
-        <div class="calendar-legend"><span><i class="price-tier-low"></i>Lower</span><span><i class="price-tier-mid"></i>Mid</span><span><i class="price-tier-high"></i>Higher</span><span>Price shown is the selected duration, or the lowest enabled duration before one is selected.</span></div>
+        <div class="calendar-legend"><span><i class="price-tier-low"></i>Lower price</span><span><i class="price-tier-mid"></i>Mid price</span><span><i class="price-tier-high"></i>Higher price</span><span class="calendar-help">Select a duration to see its exact daily price. Until then, tiles show the lowest available starting price.</span></div>
       </div>
       <div class="avail-bar" id="avail-bar">Checking availability…</div>
       <div class="price-preview" id="price-preview">
@@ -1300,7 +1308,7 @@ function renderBookingCalendar(){
     const wrap=document.createElement('div');wrap.className='calendar-month';
     wrap.innerHTML=`<div class="calendar-month-title">${start.toLocaleDateString('en-US',{month:'long',year:'numeric'})}</div><div class="calendar-grid">${['Sun','Mon','Tue','Wed','Thu','Fri','Sat'].map(x=>`<div class="calendar-weekday">${x}</div>`).join('')}</div>`;
     const grid=wrap.querySelector('.calendar-grid'); for(let i=0;i<start.getDay();i++){const b=document.createElement('button');b.className='calendar-day blank';grid.appendChild(b);}
-    for(let d=1;d<=days;d++){const x=new Date(start.getFullYear(),start.getMonth(),d,12),iso=localISODate(x),p=calendarPriceForDate(iso);const btn=document.createElement('button');btn.type='button';btn.className='calendar-day';const disabled=x<today||p==null;if(disabled)btn.classList.add('disabled');if(iso===state.start_date)btn.classList.add('selected');if(p!=null&&max>min){const r=(p-min)/(max-min);btn.classList.add(r<.34?'price-tier-low':r<.67?'price-tier-mid':'price-tier-high');}else if(p!=null)btn.classList.add('price-tier-low');btn.innerHTML=`<span class="calendar-date-num">${d}</span>${p!=null?`<span class="calendar-price">${fmtMoney(p)}</span>`:''}`;if(!disabled)btn.onclick=()=>selectCalendarDate(iso);grid.appendChild(btn);}
+    for(let d=1;d<=days;d++){const x=new Date(start.getFullYear(),start.getMonth(),d,12),iso=localISODate(x),p=calendarPriceForDate(iso);const btn=document.createElement('button');btn.type='button';btn.className='calendar-day';const disabled=x<today||p==null;if(disabled)btn.classList.add('disabled');if(iso===state.start_date)btn.classList.add('selected');if(p!=null&&max>min){const r=(p-min)/(max-min);btn.classList.add(r<.34?'price-tier-low':r<.67?'price-tier-mid':'price-tier-high');}else if(p!=null)btn.classList.add('price-tier-low');const exact=Number(document.getElementById('dur-select')?.value||state.duration_days||0)>0;btn.innerHTML=`<span class="calendar-date-num">${d}</span>${p!=null?`<span class="calendar-price ${exact?'':'from'}">${fmtMoney(p)}</span>`:''}`;if(!disabled)btn.onclick=()=>selectCalendarDate(iso);grid.appendChild(btn);}
     host.appendChild(wrap);
   }
 }
