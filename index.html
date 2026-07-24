@@ -1045,11 +1045,14 @@ async function loadPublishedContent() {
 
 // ── PRICING — loaded dynamically from API ─────────────────────────────────────
 let pricingData = null; // { seasons, cartTypes, durations }
+// SCHEDULEFLEET_PATCH_39B key/id contracts; never map by label/order
+const CART_TYPE_IDS = Object.freeze({"4seat":"d81d5795-4e32-482d-8755-da32e84a15e4","6seat":"9717735e-96d9-4031-932d-53294ce3a733","6seat_gas":"e269aa19-5151-4c43-9b42-a5a1b26e3fef","6seat_wild_dunes":"33d0edab-ad75-4c97-bd4c-b8f9df2ec71f"});
 
 async function loadPricing() {
   try {
     const res = await fetch(`${API}/pricing/public?ts=${Date.now()}`, { cache: 'no-store' });
     pricingData = await res.json();
+    for (const [key,id] of Object.entries(CART_TYPE_IDS)) { const row=pricingData.cartTypes?.find(ct=>ct.key===key); if(!row||row.id!==id) throw new Error(`Published pricing cart-type mismatch for ${key}`); }
   } catch (e) {
     console.error('Failed to load pricing:', e);
     pricingData = null;
@@ -1058,7 +1061,7 @@ async function loadPricing() {
 
 function getCartTypeId(cartTypeKey) {
   if (!pricingData) return null;
-  return pricingData.cartTypes.find(ct => ct.key === cartTypeKey)?.id || null;
+  return CART_TYPE_IDS[cartTypeKey] || null;
 }
 
 const APPROVED_DURATIONS = new Set([2, 3, 4, 5, 6, 7, 14, 30, 60, 90]);
