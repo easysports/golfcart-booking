@@ -1110,7 +1110,7 @@ function getCartTypeId(cartTypeKey) {
   return CART_TYPE_IDS[cartTypeKey] || null;
 }
 
-const APPROVED_DURATIONS = new Set([2, 3, 4, 5, 6, 7, 14, 30, 60, 90]);
+const APPROVED_DURATIONS = new Set([2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 14, 30, 60, 90]);
 
 function getDurationsForSeason(seasonId, cartTypeKey) {
   if (!pricingData) return [];
@@ -1340,6 +1340,9 @@ function onDateChange() {
   state.start_date = document.getElementById('date-input').value;
   state.duration_days = null;
   state.avail = null;
+  locationRequestSeq += 1;
+  const locationAvailability = document.getElementById('location-availability');
+  if (locationAvailability) { locationAvailability.className = 'location-rule'; locationAvailability.textContent = ''; }
   document.getElementById('avail-bar').className = 'avail-bar';
   document.getElementById('price-preview').className = 'price-preview';
   document.getElementById('next2').disabled = true;
@@ -1424,6 +1427,7 @@ function renderLocationRule(rule) {
   box.textContent = rule.message + assigned;
 }
 let locationTimer = null;
+let locationRequestSeq = 0;
 function checkStep3() {
   const addr = document.getElementById('addr-input').value.trim();
   state.delivery_address = addr.length > 5 ? addr : null;
@@ -1432,6 +1436,7 @@ function checkStep3() {
   state.location_allowed = false;
   document.getElementById('next3').disabled = true;
   clearTimeout(locationTimer);
+  const requestSeq = ++locationRequestSeq;
   if (!baseReady) {
     renderLocationRule(null);
     return;
@@ -1447,6 +1452,7 @@ function checkStep3() {
       });
       const res = await fetch(`${API}/bookings/check-address?${p}`);
       const rule = await res.json();
+      if (requestSeq !== locationRequestSeq) return;
       state.location_rule = rule;
       state.resolved_cart_type = rule.resolved_cart_type || state.cart_type;
       renderLocationRule(rule);
@@ -1465,6 +1471,7 @@ function checkStep3() {
       });
       const ar = await fetch(`${API}/bookings/availability?${ap}`);
       const availability = await ar.json();
+      if (requestSeq !== locationRequestSeq) return;
       state.avail = availability;
       state.location_allowed = !!availability.available;
       const label = displayProductName(state.resolved_cart_type || state.cart_type).replace(' LSV','');
