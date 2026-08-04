@@ -4,7 +4,7 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>Book Your Cart — GolfCart.Fun</title>
-<meta name="schedulefleet-public-version" content="3.9E.5.17" />
+<meta name="schedulefleet-public-version" content="3.9E.5.17.1" />
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&family=Nunito+Sans:wght@400;600&display=swap" rel="stylesheet" />
 <style>
@@ -1031,6 +1031,7 @@
   <a href="mailto:info@golfcart.fun">info@golfcart.fun</a> &nbsp;·&nbsp; Charleston, SC
 </footer>
 
+<script src="./checkoutStateIntegrity39E5171.js"></script>
 <script>
 // ── CONFIG ───────────────────────────────────────────────────────────────────
 const API = 'https://studops-api.onrender.com';
@@ -1056,6 +1057,10 @@ let state = {
   checkoutUrl: null,
   termsAccepted: false,
   quantity: 1,
+  availability_fingerprint: null,
+  checkout_fingerprint: null,
+  checkout_summary_fingerprint: null,
+  checkout_state_reason: null,
 };
 
 // [text-messages-public-v1]
@@ -1101,7 +1106,7 @@ let pricingData = null; // { seasons, cartTypes, durations }
 let pricingLoadError = "";
 let calendarMonthOffset = 0;
 // SCHEDULEFLEET_PATCH_39B key/id contracts; never map by label/order
-const PUBLIC_BOOKING_VERSION = '3.9E.5.17';
+const PUBLIC_BOOKING_VERSION = '3.9E.5.17.1';
 const CART_TYPE_IDS = Object.freeze({"4seat":"d81d5795-4e32-482d-8755-da32e84a15e4","6seat":"9717735e-96d9-4031-932d-53294ce3a733","6seat_gas":"e269aa19-5151-4c43-9b42-a5a1b26e3fef","6seat_wild_dunes":"33d0edab-ad75-4c97-bd4c-b8f9df2ec71f"});
 const REQUIRED_PUBLIC_CART_KEYS = Object.freeze(['4seat', '6seat']);
 const OPTIONAL_PUBLIC_CART_KEYS = Object.freeze(['6seat_gas', '6seat_wild_dunes']);
@@ -1258,6 +1263,128 @@ function saveBookingDraft(checkoutStarted = false) {
 }
 function clearBookingDraft() { try { sessionStorage.removeItem(BOOKING_DRAFT_KEY); } catch {} }
 
+// ── CHECKOUT STATE INTEGRITY — 3.9E.5.17.1 ──────────────────────────────────
+const CHECKOUT_INTEGRITY = window.ScheduleFleetCheckoutStateIntegrity39E5171;
+if (!CHECKOUT_INTEGRITY) throw new Error('Checkout state integrity library failed to load');
+
+function currentSelectionFingerprint() {
+  return CHECKOUT_INTEGRITY.selectionFingerprint(state);
+}
+
+function currentCheckoutQuoteFingerprint() {
+  return CHECKOUT_INTEGRITY.quoteFingerprint(state, { taxRate, surchargeRate });
+}
+
+function hideSavedCheckoutLink() {
+  document.getElementById('link-ready')?.classList.remove('visible');
+  const payButtons = document.getElementById('pay-buttons');
+  if (payButtons) payButtons.style.display = '';
+}
+
+function resetTermsAcceptance() {
+  state.termsAccepted = false;
+  const terms = document.getElementById('terms-check');
+  if (terms) terms.checked = false;
+}
+
+function invalidateCheckoutState(reason, options = {}) {
+  const {
+    clearAvailability = false,
+    clearLocationResolution = false,
+    preserveTerms = false,
+    saveDraft = true,
+  } = options;
+
+  state.checkoutUrl = null;
+  state.checkout_fingerprint = null;
+  state.checkout_summary_fingerprint = null;
+  state.total_price = null;
+  state.checkout_state_reason = reason || 'booking_details_changed';
+  hideSavedCheckoutLink();
+  if (!preserveTerms) resetTermsAcceptance();
+
+  if (clearAvailability) {
+    state.avail = null;
+    state.availability_fingerprint = null;
+    state.location_allowed = false;
+    const next3 = document.getElementById('next3');
+    if (next3) next3.disabled = true;
+    const availabilityBox = document.getElementById('location-availability');
+    if (availabilityBox) {
+      availabilityBox.className = 'location-rule';
+      availabilityBox.textContent = '';
+    }
+  }
+
+  if (clearLocationResolution) {
+    state.location_rule = null;
+    state.resolved_cart_type = null;
+  }
+
+  const pay = document.getElementById('pay-btn');
+  if (pay) {
+    pay.disabled = true;
+    pay.textContent = '🔒 Reserve My Cart — Pay Now';
+  }
+  if (saveDraft) saveBookingDraft(false);
+
+  window.__SCHEDULEFLEET_CHECKOUT_STATE_DIAGNOSTICS__ = {
+    version: CHECKOUT_INTEGRITY.VERSION,
+    generated_at: new Date().toISOString(),
+    state: 'invalidated',
+    reason: state.checkout_state_reason,
+    fingerprint: currentSelectionFingerprint(),
+  };
+}
+
+function currentAvailabilityIsValid() {
+  const fingerprint = currentSelectionFingerprint();
+  return !!state.location_allowed
+    && CHECKOUT_INTEGRITY.availabilityCoversQuantity(state.avail, state.quantity)
+    && CHECKOUT_INTEGRITY.fingerprintsMatch(state.availability_fingerprint, fingerprint);
+}
+
+function refreshCurrentPriceFromPublishedPricing() {
+  if (!pricingData || !state.cart_type || !state.start_date || !state.duration_days) return false;
+  const season = getSeason(state.start_date, state.cart_type);
+  if (!season) return false;
+  const duration = getPriceForDuration(season.id, state.cart_type, Number(state.duration_days));
+  if (!duration || duration.price === null || duration.price === undefined) return false;
+  state.base_price = Number(duration.price);
+  state.season = season.name;
+  return Number.isFinite(state.base_price) && state.base_price > 0;
+}
+
+function checkoutPreflight() {
+  if (!refreshCurrentPriceFromPublishedPricing()) {
+    return { ok:false, reason:'Current published price could not be verified.' };
+  }
+  if (!state.zone || !state.delivery_address) {
+    return { ok:false, reason:'Delivery details are incomplete.' };
+  }
+  if (!currentAvailabilityIsValid()) {
+    return { ok:false, reason:'Booking details changed. Recheck address and availability before payment.' };
+  }
+  return {
+    ok:true,
+    selection_fingerprint:currentSelectionFingerprint(),
+    quote_fingerprint:currentCheckoutQuoteFingerprint(),
+  };
+}
+
+function clearOrderSummary(message = 'Complete form to see total') {
+  const empty = document.getElementById('order-empty');
+  const lines = document.getElementById('order-lines');
+  if (empty) {
+    empty.style.display = '';
+    empty.innerHTML = `<div class="empty-icon">🛒</div>${message}`;
+  }
+  if (lines) lines.style.display = 'none';
+  state.checkout_summary_fingerprint = null;
+  const pay = document.getElementById('pay-btn');
+  if (pay) pay.disabled = true;
+}
+
 // ── TAX / SURCHARGE RATES ────────────────────────────────────────────────────
 let taxRate = 0.09;
 let surchargeRate = 0.03;
@@ -1297,7 +1424,10 @@ let currentStep = 1;
 function goStep(n) {
   if (n > 1 && !state.cart_type) return;
   if (n > 2 && !state.duration_days) return;
-  if (n > 3 && (!state.zone || !state.delivery_address || !state.location_allowed)) return;
+  if (n > 3 && !currentAvailabilityIsValid()) {
+    checkStep3();
+    return;
+  }
 
   currentStep = n;
   [1,2,3,4].forEach(i => {
@@ -1311,15 +1441,26 @@ function goStep(n) {
       document.getElementById('line'+i).className = 'step-line' + (i<n?' done':'');
     }
   });
+  if (n === 4) checkStep4();
   window.scrollTo({ top: 0, behavior: 'smooth' });
 }
 
 // ── STEP 1 ───────────────────────────────────────────────────────────────────
-function selectCart(type) {
+function selectCart(type, options = {}) {
+  const changed = state.cart_type !== type;
   state.cart_type = type;
   state.duration_days = null;
   state.base_price = 0;
   state.avail = null;
+  state.availability_fingerprint = null;
+  state.location_allowed = false;
+  state.resolved_cart_type = null;
+  if (changed && !options.suppressInvalidate) {
+    state.location_acknowledged = false;
+    const locationAck = document.getElementById('location-ack-input');
+    if (locationAck) locationAck.checked = false;
+    invalidateCheckoutState('cart_type_changed', { clearAvailability:true, clearLocationResolution:true, saveDraft:false });
+  }
   document.getElementById('btn4').classList.toggle('selected', type==='4seat');
   document.getElementById('btn6').classList.toggle('selected', type==='6seat');
   document.getElementById('next1').disabled = false;
@@ -1337,14 +1478,20 @@ function selectCart(type) {
   renderBookingCalendar();
 }
 
-function selectQty(n) {
+function selectQty(n, options = {}) {
+  const changed = Number(state.quantity || 1) !== Number(n);
   state.quantity = n;
+  if (changed && !options.suppressInvalidate) {
+    invalidateCheckoutState('quantity_changed', { clearAvailability:true, saveDraft:false });
+  }
   [1,2,3,4].forEach(i => {
     const btn = document.getElementById('qty-btn-' + i);
     btn.classList.toggle('qty-active', i === n);
   });
   updateStripQty();
   updatePricePreview();
+  if (changed && !options.suppressInvalidate && state.zone && state.delivery_address && state.duration_days) checkStep3();
+  if (!options.suppressInvalidate) saveBookingDraft(false);
 }
 
 function updateStripQty() {
@@ -1416,9 +1563,16 @@ function populateDurations() {
 }
 
 function onDateChange() {
-  state.start_date = document.getElementById('date-input').value;
+  const nextDate = document.getElementById('date-input').value;
+  const changed = state.start_date !== nextDate;
+  state.start_date = nextDate;
   state.duration_days = null;
+  state.base_price = 0;
   state.avail = null;
+  state.availability_fingerprint = null;
+  state.location_allowed = false;
+  state.resolved_cart_type = null;
+  if (changed) invalidateCheckoutState('start_date_changed', { clearAvailability:true, clearLocationResolution:true, saveDraft:false });
   locationRequestSeq += 1;
   const locationAvailability = document.getElementById('location-availability');
   if (locationAvailability) { locationAvailability.className = 'location-rule'; locationAvailability.textContent = ''; }
@@ -1427,14 +1581,20 @@ function onDateChange() {
   document.getElementById('next2').disabled = true;
   populateDurations();
   renderBookingCalendar();
+  saveBookingDraft(false);
 }
 
 let availTimer = null;
 function onDurChange() {
   state.start_date = document.getElementById('date-input').value || state.start_date;
   const val = document.getElementById('dur-select').value;
-  state.duration_days = val ? parseInt(val) : null;
+  const nextDuration = val ? parseInt(val) : null;
+  const changed = Number(state.duration_days || 0) !== Number(nextDuration || 0);
+  state.duration_days = nextDuration;
   state.avail = null;
+  state.availability_fingerprint = null;
+  state.location_allowed = false;
+  if (changed) invalidateCheckoutState('duration_changed', { clearAvailability:true, saveDraft:false });
   document.getElementById('next2').disabled = true;
 
   if (!val || !state.start_date) {
@@ -1443,12 +1603,7 @@ function onDurChange() {
     return;
   }
 
-  const s = getSeason(state.start_date, state.cart_type);
-  if (!s) return;
-  const durRecord = getPriceForDuration(s.id, state.cart_type, state.duration_days);
-  if (!durRecord || durRecord.price === null) return;
-  state.base_price = durRecord.price;
-  state.season = s.name;
+  if (!refreshCurrentPriceFromPublishedPricing()) return;
   updatePricePreview();
   document.getElementById('price-preview').className = 'price-preview visible';
 
@@ -1462,10 +1617,12 @@ function onDurChange() {
   document.getElementById('next2').disabled = false;
   saveBookingDraft(false);
   renderBookingCalendar();
+  if (state.zone && state.delivery_address) checkStep3();
 }
 
 // ── STEP 3 ───────────────────────────────────────────────────────────────────
-function selectZone(name, fee, el) {
+function selectZone(name, fee, el, options = {}) {
+  const changed = state.zone !== name || Number(state.delivery_fee || 0) !== Number(fee || 0);
   state.zone = name;
   state.delivery_fee = fee;
   state.property_name = null;
@@ -1473,15 +1630,22 @@ function selectZone(name, fee, el) {
   state.location_allowed = false;
   state.location_rule = null;
   state.resolved_cart_type = null;
+  state.avail = null;
+  state.availability_fingerprint = null;
+  if (changed && !options.suppressInvalidate) invalidateCheckoutState('zone_changed', { clearAvailability:true, clearLocationResolution:true, saveDraft:false });
   document.querySelectorAll('.zone-pill').forEach(p => p.classList.remove('selected'));
   el.classList.add('selected');
   document.getElementById('seabrook-property-group').style.display = name === 'Seabrook Island' ? 'block' : 'none';
   document.getElementById('location-ack-input').checked = false;
   renderLocationRule(null);
-  checkStep3();
+  if (!options.suppressCheck) checkStep3();
 }
 function onLocationAckChange() {
-  state.location_acknowledged = document.getElementById('location-ack-input').checked;
+  const nextAcknowledged = document.getElementById('location-ack-input').checked;
+  if (state.location_acknowledged !== nextAcknowledged) {
+    state.location_acknowledged = nextAcknowledged;
+    invalidateCheckoutState('location_acknowledgement_changed', { clearAvailability:true, saveDraft:false });
+  }
   checkStep3();
 }
 function displayProductName(key) {
@@ -1509,10 +1673,19 @@ let locationTimer = null;
 let locationRequestSeq = 0;
 function checkStep3() {
   const addr = document.getElementById('addr-input').value.trim();
-  state.delivery_address = addr.length > 5 ? addr : null;
+  const nextAddress = addr.length > 5 ? addr : null;
+  const addressChanged = CHECKOUT_INTEGRITY.normalizeAddress(state.delivery_address) !== CHECKOUT_INTEGRITY.normalizeAddress(nextAddress);
+  state.delivery_address = nextAddress;
   state.property_name = null;
+  if (addressChanged) {
+    state.location_acknowledged = false;
+    const locationAck = document.getElementById('location-ack-input');
+    if (locationAck) locationAck.checked = false;
+    invalidateCheckoutState('delivery_address_changed', { clearAvailability:true, clearLocationResolution:true, saveDraft:false });
+  }
   const baseReady = !!(state.zone && state.delivery_address && state.cart_type && state.start_date && state.duration_days);
   state.location_allowed = false;
+  state.availability_fingerprint = null;
   document.getElementById('next3').disabled = true;
   clearTimeout(locationTimer);
   const requestSeq = ++locationRequestSeq;
@@ -1528,12 +1701,17 @@ function checkStep3() {
         address: state.delivery_address || '',
         cart_type: state.cart_type || '',
         location_acknowledged: String(!!state.location_acknowledged),
+        quantity: String(Number(state.quantity || 1)),
       });
       const res = await fetch(`${API}/bookings/check-address?${p}`);
       const rule = await res.json();
       if (requestSeq !== locationRequestSeq) return;
+      const nextResolvedCartType = rule.resolved_cart_type || state.cart_type;
+      if (state.resolved_cart_type && state.resolved_cart_type !== nextResolvedCartType) {
+        invalidateCheckoutState('resolved_cart_type_changed', { clearAvailability:true, saveDraft:false });
+      }
       state.location_rule = rule;
-      state.resolved_cart_type = rule.resolved_cart_type || state.cart_type;
+      state.resolved_cart_type = nextResolvedCartType;
       renderLocationRule(rule);
       const availabilityBox = document.getElementById('location-availability');
       availabilityBox.className = 'location-rule';
@@ -1547,20 +1725,27 @@ function checkStep3() {
         zone: state.zone || '',
         delivery_address: state.delivery_address || '',
         location_acknowledged: String(!!state.location_acknowledged),
+        quantity: String(Number(state.quantity || 1)),
       });
       const ar = await fetch(`${API}/bookings/availability?${ap}`);
       const availability = await ar.json();
       if (requestSeq !== locationRequestSeq) return;
       state.avail = availability;
-      state.location_allowed = !!availability.available;
+      const quantityAvailable = CHECKOUT_INTEGRITY.availabilityCoversQuantity(availability, state.quantity);
+      state.location_allowed = quantityAvailable;
+      state.availability_fingerprint = quantityAvailable ? currentSelectionFingerprint() : null;
       const label = displayProductName(state.resolved_cart_type || state.cart_type).replace(' LSV','');
       const range = selectedDateRange();
-      if (availability.available) {
+      if (state.location_allowed) {
         availabilityBox.className = 'location-rule info';
         availabilityBox.textContent = `✅ ${label} selected · ${range} · ${availability.available_count} available`;
       } else {
         availabilityBox.className = 'location-rule block';
-        availabilityBox.textContent = availability.error || `No ${label} carts are available for ${range}.`;
+        const requested = Number(state.quantity || 1);
+        const availableCount = Number(availability.available_count);
+        availabilityBox.textContent = availability.error || (Number.isFinite(availableCount)
+          ? `Only ${availableCount} ${label} cart${availableCount === 1 ? '' : 's'} available; ${requested} requested.`
+          : `Availability could not verify ${requested} requested ${label} cart${requested === 1 ? '' : 's'}.`);
       }
       document.getElementById('next3').disabled = !state.location_allowed;
       saveBookingDraft(false);
@@ -1572,37 +1757,83 @@ function checkStep3() {
 
 // ── STEP 4 ───────────────────────────────────────────────────────────────────
 function checkStep4() {
+  const preflight = checkoutPreflight();
+  if (!preflight.ok) {
+    clearOrderSummary(preflight.reason);
+    window.__SCHEDULEFLEET_CHECKOUT_STATE_DIAGNOSTICS__ = {
+      version: CHECKOUT_INTEGRITY.VERSION,
+      generated_at: new Date().toISOString(),
+      state: 'blocked',
+      reason: preflight.reason,
+      fingerprint: currentSelectionFingerprint(),
+    };
+    return false;
+  }
+
   const fn = document.getElementById('fname').value.trim();
   const ln = document.getElementById('lname').value.trim();
   const em = document.getElementById('email').value.trim();
   const ph = document.getElementById('phone').value.trim();
-  const ok = fn && ln && em.includes('@') && ph.length >= 7 && state.termsAccepted;
-  document.getElementById('pay-btn').disabled = !ok;
+  const formReady = !!(fn && ln && em.includes('@') && ph.length >= 7 && state.termsAccepted);
 
-  if (state.base_price && state.zone) {
-    const qty = state.quantity || 1;
-    const { rental, subtotal, surcharge, tax, total } = calcTotals(state.base_price, state.delivery_fee, qty);
-    document.getElementById('order-empty').style.display = 'none';
-    document.getElementById('order-lines').style.display = 'block';
-    const shownProduct = displayProductName(state.resolved_cart_type || state.cart_type).replace(' LSV','');
-    const cartLabel = qty > 1
-      ? `${qty}x ${state.duration_days}-day ${shownProduct}`
-      : `${state.duration_days}-day ${shownProduct}`;
-    document.getElementById('ol-cart').textContent = cartLabel;
-    document.getElementById('ol-base').textContent = fmtMoney(rental);
-    document.getElementById('ol-zone').textContent = `Delivery to ${state.zone}`;
-    document.getElementById('ol-del').textContent = `+${fmtMoney(state.delivery_fee)}`;
-    document.getElementById('ol-surcharge').textContent = `+${fmtMoney(surcharge)}`;
-    document.getElementById('ol-tax').textContent = `+${fmtMoney(tax)}`;
-    document.getElementById('ol-total').textContent = fmtMoney(total);
-    const end = addDays(state.start_date, state.duration_days);
-    document.getElementById('ol-dates').textContent =
-      `${fmtDate(state.start_date)} → ${fmtDate(end)}`;
-    state.total_price = total;
+  const qty = state.quantity || 1;
+  const { rental, surcharge, tax, total } = calcTotals(state.base_price, state.delivery_fee, qty);
+  document.getElementById('order-empty').style.display = 'none';
+  document.getElementById('order-lines').style.display = 'block';
+  const shownProduct = displayProductName(state.resolved_cart_type || state.cart_type).replace(' LSV','');
+  const cartLabel = qty > 1
+    ? `${qty}x ${state.duration_days}-day ${shownProduct}`
+    : `${state.duration_days}-day ${shownProduct}`;
+  document.getElementById('ol-cart').textContent = cartLabel;
+  document.getElementById('ol-base').textContent = fmtMoney(rental);
+  document.getElementById('ol-zone').textContent = `Delivery to ${state.zone}`;
+  document.getElementById('ol-del').textContent = `+${fmtMoney(state.delivery_fee)}`;
+  document.getElementById('ol-surcharge').textContent = `+${fmtMoney(surcharge)}`;
+  document.getElementById('ol-tax').textContent = `+${fmtMoney(tax)}`;
+  document.getElementById('ol-total').textContent = fmtMoney(total);
+  const end = addDays(state.start_date, state.duration_days);
+  document.getElementById('ol-dates').textContent = `${fmtDate(state.start_date)} → ${fmtDate(end)}`;
+  state.total_price = total;
+  state.checkout_summary_fingerprint = preflight.quote_fingerprint;
+
+  const exactSavedCheckout = state.checkoutUrl
+    && CHECKOUT_INTEGRITY.fingerprintsMatch(state.checkout_fingerprint, preflight.quote_fingerprint);
+  if (exactSavedCheckout) {
+    document.getElementById('link-ready').classList.add('visible');
+    document.getElementById('pay-buttons').style.display = 'none';
+  } else {
+    hideSavedCheckoutLink();
+    document.getElementById('pay-btn').disabled = !formReady;
   }
+
+  window.__SCHEDULEFLEET_CHECKOUT_STATE_DIAGNOSTICS__ = {
+    version: CHECKOUT_INTEGRITY.VERSION,
+    generated_at: new Date().toISOString(),
+    state: 'ready',
+    selection_fingerprint: preflight.selection_fingerprint,
+    quote_fingerprint: preflight.quote_fingerprint,
+    availability_fingerprint: state.availability_fingerprint,
+    checkout_fingerprint: state.checkout_fingerprint,
+    cart_type: state.cart_type,
+    resolved_cart_type: state.resolved_cart_type || state.cart_type,
+    quantity: Number(state.quantity || 1),
+    total,
+  };
+  return true;
 }
 
 async function handlePay() {
+  const preflight = checkoutPreflight();
+  if (!preflight.ok || state.checkout_summary_fingerprint !== preflight.quote_fingerprint) {
+    checkStep4();
+    alert('Your booking details changed. Please recheck availability and review the updated total before payment.');
+    return;
+  }
+  if (!state.termsAccepted) {
+    alert('Please review and accept the rental policies before payment.');
+    return;
+  }
+
   const fn    = document.getElementById('fname').value.trim();
   const ln    = document.getElementById('lname').value.trim();
   const email = document.getElementById('email').value.trim();
@@ -1641,6 +1872,7 @@ async function handlePay() {
     const data = await res.json();
     if (data.checkout_url) {
       state.checkoutUrl = data.checkout_url;
+      state.checkout_fingerprint = preflight.quote_fingerprint;
       saveBookingDraft(true);
       document.getElementById('link-ready').classList.add('visible');
       document.getElementById('pay-buttons').style.display = 'none';
@@ -1663,20 +1895,22 @@ function restoreCheckoutDraft() {
   const draft = readBookingDraft();
   if (!draft?.checkout_started || !draft.state?.cart_type) return false;
   const saved = draft.state;
-  selectCart(saved.cart_type);
-  selectQty(Number(saved.quantity) || 1);
+  selectCart(saved.cart_type, { suppressInvalidate:true });
+  selectQty(Number(saved.quantity) || 1, { suppressInvalidate:true });
   document.getElementById('date-input').value = saved.start_date || firstBookableDate;
   state.start_date = saved.start_date || firstBookableDate;
   populateDurations();
   if (saved.duration_days) {
     document.getElementById('dur-select').value = String(saved.duration_days);
-    onDurChange();
+    state.duration_days = Number(saved.duration_days);
+    refreshCurrentPriceFromPublishedPricing();
   }
   if (saved.zone) {
     const pill = [...document.querySelectorAll('.zone-pill')].find(el => el.textContent.trim().startsWith(saved.zone));
-    if (pill) selectZone(saved.zone, Number(saved.delivery_fee) || 99.99, pill);
+    if (pill) selectZone(saved.zone, Number(saved.delivery_fee) || 99.99, pill, { suppressInvalidate:true, suppressCheck:true });
   }
-  state = { ...state, ...saved, location_allowed:true, avail:saved.avail || {available:true} };
+  state = { ...state, ...saved };
+  refreshCurrentPriceFromPublishedPricing();
   const fields = draft.fields || {};
   Object.entries(fields).forEach(([id,value]) => {
     const el=document.getElementById(id); if(!el) return;
@@ -1684,12 +1918,27 @@ function restoreCheckoutDraft() {
   });
   state.delivery_address = fields['addr-input'] || saved.delivery_address || '';
   state.termsAccepted = !!fields['terms-check'];
+
+  const selectionFingerprint = currentSelectionFingerprint();
+  const quoteFingerprint = currentCheckoutQuoteFingerprint();
+  const resumable = !!state.checkoutUrl
+    && CHECKOUT_INTEGRITY.fingerprintsMatch(state.checkout_fingerprint, quoteFingerprint)
+    && CHECKOUT_INTEGRITY.fingerprintsMatch(state.availability_fingerprint, selectionFingerprint)
+    && CHECKOUT_INTEGRITY.availabilityCoversQuantity(state.avail, state.quantity);
+
+  if (!resumable) {
+    invalidateCheckoutState('restored_checkout_requires_revalidation', { clearAvailability:true, preserveTerms:false, saveDraft:false });
+    goStep(3);
+    checkStep3();
+    saveBookingDraft(false);
+    return true;
+  }
+
   goStep(4);
   document.getElementById('link-ready').classList.add('visible');
   document.getElementById('pay-buttons').style.display = 'none';
   const title = document.querySelector('#link-ready .link-ready-title');
   if (title) title.textContent = 'Your booking is saved — resume secure checkout';
-  setTimeout(checkStep3, 50);
   return true;
 }
 
