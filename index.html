@@ -4,6 +4,7 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>Book Your Cart — GolfCart.Fun</title>
+<meta name="schedulefleet-public-version" content="3.9E.5.17" />
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&family=Nunito+Sans:wght@400;600&display=swap" rel="stylesheet" />
 <style>
@@ -1100,25 +1101,83 @@ let pricingData = null; // { seasons, cartTypes, durations }
 let pricingLoadError = "";
 let calendarMonthOffset = 0;
 // SCHEDULEFLEET_PATCH_39B key/id contracts; never map by label/order
+const PUBLIC_BOOKING_VERSION = '3.9E.5.17';
 const CART_TYPE_IDS = Object.freeze({"4seat":"d81d5795-4e32-482d-8755-da32e84a15e4","6seat":"9717735e-96d9-4031-932d-53294ce3a733","6seat_gas":"e269aa19-5151-4c43-9b42-a5a1b26e3fef","6seat_wild_dunes":"33d0edab-ad75-4c97-bd4c-b8f9df2ec71f"});
+const REQUIRED_PUBLIC_CART_KEYS = Object.freeze(['4seat', '6seat']);
+const OPTIONAL_PUBLIC_CART_KEYS = Object.freeze(['6seat_gas', '6seat_wild_dunes']);
+
+function safePricingDiagnostics(payload, error = null) {
+  const cartTypes = Array.isArray(payload?.cartTypes) ? payload.cartTypes : [];
+  return {
+    version: PUBLIC_BOOKING_VERSION,
+    generated_at: new Date().toISOString(),
+    response_ok: payload?.ok !== false,
+    error_code: payload?.error_code || error?.code || null,
+    error_message: payload?.error || error?.message || null,
+    returned_cart_keys: cartTypes.map(row => row?.key).filter(Boolean),
+    contract: payload?.contract || null,
+  };
+}
+
+function validatePublishedPricingPayload(payload) {
+  if (!payload || typeof payload !== 'object') throw Object.assign(new Error('Pricing response was empty'), { code:'PUBLIC_PRICING_EMPTY' });
+  if (payload.ok === false) throw Object.assign(new Error(payload.error || 'Live pricing unavailable'), { code: payload.error_code || 'PUBLIC_PRICING_BLOCKED' });
+  if (!Array.isArray(payload.seasons) || !Array.isArray(payload.cartTypes) || !Array.isArray(payload.durations)) {
+    throw Object.assign(new Error('Pricing response is incomplete'), { code:'PUBLIC_PRICING_SHAPE' });
+  }
+  for (const key of REQUIRED_PUBLIC_CART_KEYS) {
+    const id = CART_TYPE_IDS[key];
+    const row = payload.cartTypes.find(ct => ct?.key === key);
+    if (!row) throw Object.assign(new Error(`Published pricing is missing ${key}`), { code:'PUBLIC_PRICING_REQUIRED_TYPE_MISSING' });
+    if (row.id !== id) throw Object.assign(new Error(`Published pricing cart-type mismatch for ${key}`), { code:'PUBLIC_PRICING_REQUIRED_TYPE_MISMATCH' });
+    if (payload.cart_type_ids && payload.cart_type_ids[key] !== id) throw Object.assign(new Error(`Server pricing contract mismatch for ${key}`), { code:'PUBLIC_PRICING_REQUIRED_CONTRACT_MISMATCH' });
+    const hasEnabledPrice = payload.durations.some(d => d?.cart_type_id === id && d?.enabled !== false && d?.price !== null && d?.price !== undefined);
+    if (!hasEnabledPrice) throw Object.assign(new Error(`Published pricing has no enabled prices for ${key}`), { code:'PUBLIC_PRICING_REQUIRED_PRICE_MISSING' });
+  }
+  // Gas and Wild Dunes are location-resolved optional products. Their absence
+  // must never disable ordinary 4- and 6-passenger public checkout. When an
+  // optional row is published, its stable ID still has to match.
+  for (const key of OPTIONAL_PUBLIC_CART_KEYS) {
+    const row = payload.cartTypes.find(ct => ct?.key === key);
+    if (row && row.id !== CART_TYPE_IDS[key]) throw Object.assign(new Error(`Optional pricing cart-type mismatch for ${key}`), { code:'PUBLIC_PRICING_OPTIONAL_TYPE_MISMATCH' });
+    if (payload.cart_type_ids?.[key] && payload.cart_type_ids[key] !== CART_TYPE_IDS[key]) throw Object.assign(new Error(`Optional server pricing contract mismatch for ${key}`), { code:'PUBLIC_PRICING_OPTIONAL_CONTRACT_MISMATCH' });
+  }
+  return payload;
+}
+
+async function fetchPricingAttempt(attempt) {
+  const res = await fetch(`${API}/pricing/public?ts=${Date.now()}&attempt=${attempt}`, { cache: 'no-store' });
+  let payload = null;
+  try { payload = await res.json(); } catch (_) {}
+  if (!res.ok) {
+    const err = Object.assign(new Error(payload?.error || `Pricing HTTP ${res.status}`), { code: payload?.error_code || `PRICING_HTTP_${res.status}` });
+    err.payload = payload;
+    throw err;
+  }
+  return validatePublishedPricingPayload(payload);
+}
 
 async function loadPricing() {
-  try {
-    const res = await fetch(`${API}/pricing/public?ts=${Date.now()}`, { cache: 'no-store' });
-    const payload = await res.json();
-    if (!res.ok) throw new Error(payload.error || `Pricing HTTP ${res.status}`);
-    for (const [key,id] of Object.entries(CART_TYPE_IDS)) {
-      const row=payload.cartTypes?.find(ct=>ct.key===key);
-      if(!row||row.id!==id) throw new Error(`Published pricing cart-type mismatch for ${key}`);
-      if (payload.cart_type_ids && payload.cart_type_ids[key] !== id) throw new Error(`Server pricing contract mismatch for ${key}`);
+  let lastError = null;
+  for (let attempt = 1; attempt <= 2; attempt += 1) {
+    try {
+      const payload = await fetchPricingAttempt(attempt);
+      pricingData = payload;
+      pricingLoadError = "";
+      window.__SCHEDULEFLEET_PRICING_DIAGNOSTICS__ = safePricingDiagnostics(payload);
+      const fatal = document.getElementById('pricing-fatal'); if (fatal) fatal.classList.remove('visible');
+      return;
+    } catch (e) {
+      lastError = e;
+      if (attempt < 2) await new Promise(resolve => setTimeout(resolve, 900));
     }
-    pricingData = payload; pricingLoadError = "";
-  } catch (e) {
-    console.error('Failed to load pricing:', e);
-    pricingData = null; pricingLoadError = e.message || 'Live pricing unavailable';
-    const fatal=document.getElementById('pricing-fatal'); if(fatal) fatal.classList.add('visible');
-    ['next1','next2','next3','pay-btn'].forEach(id=>{const el=document.getElementById(id);if(el)el.disabled=true;});
   }
+  console.error('Failed to load pricing:', lastError);
+  pricingData = null;
+  pricingLoadError = lastError?.message || 'Live pricing unavailable';
+  window.__SCHEDULEFLEET_PRICING_DIAGNOSTICS__ = safePricingDiagnostics(lastError?.payload, lastError);
+  const fatal=document.getElementById('pricing-fatal'); if(fatal) fatal.classList.add('visible');
+  ['next1','next2','next3','pay-btn'].forEach(id=>{const el=document.getElementById(id);if(el)el.disabled=true;});
 }
 
 function getCartTypeId(cartTypeKey) {
