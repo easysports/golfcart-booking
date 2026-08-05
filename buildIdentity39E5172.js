@@ -1,5 +1,5 @@
 (() => {
-  const VERSION = "3.9E.5.17.2";
+  const VERSION = "3.9E.5.17.3";
 
   const text = value => String(value ?? "").trim();
   const setText = (id, value) => {

@@ -50,7 +50,7 @@ assert.equal(integrity.availabilityCoversQuantity({ available: true }, 1), true)
 assert.equal(integrity.availabilityCoversQuantity({ available: true }, 2), false, "multi-cart checkout fails closed without a count");
 assert.equal(integrity.availabilityCoversQuantity({ available: false, available_count: 10 }, 1), false);
 
-assert.match(html, /schedulefleet-public-version" content="3\.9E\.5\.17\.2"/);
+assert.match(html, /schedulefleet-public-version" content="3\.9E\.5\.17\.3"/);
 assert.match(html, /checkoutStateIntegrity39E5171\.js/);
 assert.match(html, /if \(n === 4\) checkStep4\(\)/, "checkout summary must refresh whenever Step 4 opens");
 assert.match(html, /invalidateCheckoutState\('cart_type_changed'/);
