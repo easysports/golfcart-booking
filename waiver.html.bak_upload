@@ -308,7 +308,7 @@
         <label class="photo-btn" id="dl-btn">
           <span class="icon">🪪</span>
           <span class="txt">Take / upload photo<small id="dl-name">Tap to open camera or choose a file</small></span>
-          <input type="file" id="dl_photo" accept="image/*" />
+          <input type="file" id="dl_photo" accept="image/*" capture="environment" />
         </label>
       </div>
 
@@ -317,7 +317,7 @@
         <label class="photo-btn" id="ins-btn">
           <span class="icon">📄</span>
           <span class="txt">Take / upload photo<small id="ins-name">Tap to open camera or choose a file</small></span>
-          <input type="file" id="insurance_photo" accept="image/*" />
+          <input type="file" id="insurance_photo" accept="image/*" capture="environment" />
         </label>
       </div>
     </div>
