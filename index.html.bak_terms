@@ -991,7 +991,6 @@
               <li>All passengers must be seated and belted at all times</li>
               <li>Do not exceed the cart's stated passenger capacity</li>
               <li>All normal driving and parking laws apply</li>
-              <li>Your payment method is securely saved by Stripe and may be charged for approved additional rental days or damages per the rental agreement</li><!-- [patch-terms-card-disclosure-v1] -->
             </ul>
           </div>
         </div>
