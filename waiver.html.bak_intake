@@ -142,11 +142,7 @@
   .photo-btn .txt { font-family: 'Nunito', sans-serif; font-weight: 700; font-size: 14px; color: var(--text); }
   .photo-btn .txt small { display: block; font-weight: 400; font-size: 12px; color: var(--muted); }
   .photo-btn input { display: none; }
-  .photo-thumb { height: 64px; width: 64px; object-fit: cover; border-radius: 8px; border: 1px solid var(--border); }
-  /* [waiver-intake-clarity-v1] */
-  .doc-note { font-size: 12px; line-height: 1.5; color: var(--sub); background: #fbfbf9;
-    border: 1px solid var(--border); border-left: 3px solid var(--orange);
-    border-radius: 6px; padding: 9px 11px; margin-bottom: 10px; }
+  .photo-thumb { height: 44px; width: 44px; object-fit: cover; border-radius: 8px; border: 1px solid var(--border); }
   .photo-btn.done { border-color: var(--green); background: #f1f8f2; }
   .photo-btn.done .check { color: var(--green); font-weight: 800; margin-left: auto; }
 
@@ -305,25 +301,22 @@
 
     <div class="card">
       <div class="card-title">Photos</div>
-      <div class="card-sub">Two different documents: your driver&#39;s licence, and your auto insurance card.</div>
+      <div class="card-sub">A clear photo of your driver's license and auto-insurance card.</div>
 
       <div class="field">
-        <label>1. Driver's licence &mdash; front <span class="req">*</span></label>
+        <label>Driver's license <span class="req">*</span></label>
         <label class="photo-btn" id="dl-btn">
           <span class="icon">🪪</span>
-          <span class="txt">Photo of your licence<small id="dl-name">The front, with your photo and date of birth</small></span>
+          <span class="txt">Take / upload photo<small id="dl-name">Tap to open camera or choose a file</small></span>
           <input type="file" id="dl_photo" accept="image/*" />
         </label>
       </div>
 
       <div class="field" style="margin-bottom:0;">
-        <label>2. Auto insurance card <span class="req">*</span></label>
-        <div class="doc-note">This is the card from your <strong>car insurance company</strong> &mdash;
-          GEICO, State Farm, Progressive, Allstate, USAA. It shows your policy number.
-          <strong>Not</strong> the back of your licence, and not a health insurance card.</div>
+        <label>Insurance card <span class="req">*</span></label>
         <label class="photo-btn" id="ins-btn">
-          <span class="icon">🚗</span>
-          <span class="txt">Photo of your insurance card<small id="ins-name">Paper card, or the one in your insurer&rsquo;s app</small></span>
+          <span class="icon">📄</span>
+          <span class="txt">Take / upload photo<small id="ins-name">Tap to open camera or choose a file</small></span>
           <input type="file" id="insurance_photo" accept="image/*" />
         </label>
       </div>
@@ -494,25 +487,7 @@ function handlePhoto(inputId, btnId, nameId, key) {
         const canvas = document.createElement('canvas');
         canvas.width = width; canvas.height = height;
         canvas.getContext('2d').drawImage(img, 0, 0, width, height);
-        const encoded = canvas.toDataURL('image/jpeg', 0.85);
-
-        // [waiver-intake-clarity-v1] The same picture in both slots is always a
-        // mistake, and it is far kinder to say so now than to let the customer
-        // finish, drive to the island, and be turned away at the cart.
-        const otherKey = key === 'dl' ? 'insurance' : 'dl';
-        if (photos[otherKey] && photos[otherKey] === encoded) {
-          input.value = '';
-          const errEl = document.getElementById('form-err');
-          if (errEl) {
-            errEl.textContent = key === 'insurance'
-              ? 'That is the same picture as your licence. Please add your auto insurance card \u2014 the card from your insurance company showing your policy number.'
-              : 'That is the same picture as your insurance card. Please add the front of your driver\u2019s licence.';
-            errEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
-          }
-          return;
-        }
-
-        photos[key] = encoded;
+        photos[key] = canvas.toDataURL('image/jpeg', 0.85);
 
         // UI: thumbnail + done state
         btn.classList.add('done');
@@ -568,7 +543,7 @@ async function submit() {
   }
   if (!address) { errEl.textContent = 'Please enter your home address.'; return; }
   if (!photos.dl) { errEl.textContent = "Please add a photo of your driver's license."; return; }
-  if (!photos.insurance) { errEl.textContent = 'Please add a photo of your auto insurance card \u2014 the card from your insurance company, not the back of your licence.'; return; }
+  if (!photos.insurance) { errEl.textContent = 'Please add a photo of your insurance card.'; return; }
   if (!hasSignature) { errEl.textContent = 'Please sign in the signature box.'; return; }
   if (!agreed) { errEl.textContent = 'Please check the box to agree to the waiver.'; return; }
 
@@ -607,8 +582,6 @@ async function submit() {
     show(els.success);
     window.scrollTo(0, 0);
   } catch (e) {
-    // [waiver-intake-clarity-v1] the server also hashes both images; its duplicate
-    // message is written for the customer, so pass it straight through
     errEl.textContent = e.message === 'Submission failed' || !e.message
       ? 'Something went wrong. Please try again or call (843) 800-0310.'
       : e.message;
