@@ -1205,6 +1205,7 @@ async function loadPricing() {
     try {
       const payload = await fetchPricingAttempt(attempt);
       pricingData = payload;
+      applyPublicRates39E595(payload); // [patch39e595-public-tax-rates-v1] tax/surcharge come with the pricing payload (res.ok already checked in fetchPricingAttempt)
       pricingLoadError = "";
       window.__SCHEDULEFLEET_PRICING_DIAGNOSTICS__ = safePricingDiagnostics(payload);
       const fatal = document.getElementById('pricing-fatal'); if (fatal) fatal.classList.remove('visible');
@@ -1426,13 +1427,16 @@ function clearOrderSummary(message = 'Complete form to see total') {
 let taxRate = 0.09;
 let surchargeRate = 0.03;
 
-async function loadSettings() {
-  try {
-    const res = await fetch(`${API}/pricing/settings`);
-    const d = await res.json();
-    if (d.tax_rate)       taxRate       = parseFloat(d.tax_rate);
-    if (d.surcharge_rate) surchargeRate = parseFloat(d.surcharge_rate);
-  } catch {}
+// [patch39e595-public-tax-rates-v1] Rates ride on the public pricing payload (GET /pricing/public,
+// backend v1.9.43+); the staff-only settings route is no longer read, so the page keeps
+// quoting correctly once STUDOPS_API_KEY is switched on. A value is accepted only when it is a
+// finite number between 0 and 1; otherwise the defaults above stand.
+function applyPublicRates39E595(payload) {
+  const rate = (v) => { const n = Number(v); return Number.isFinite(n) && n >= 0 && n <= 1 ? n : null; };
+  const tax = rate(payload?.tax_rate);
+  const surcharge = rate(payload?.surcharge_rate);
+  if (tax !== null) taxRate = tax;
+  if (surcharge !== null) surchargeRate = surcharge;
 }
 
 function calcTotals(basePrice, deliveryFee, qty) {
@@ -1986,7 +1990,7 @@ document.getElementById('date-input').value = firstBookableDate;
 state.start_date = firstBookableDate;
 
 // Load pricing + settings from API on page load
-Promise.all([loadPricing(), loadSettings(), loadPublishedContent()]).then(() => {
+Promise.all([loadPricing(), loadPublishedContent()]).then(() => { // [patch39e595-public-tax-rates-v1] settings now arrive with loadPricing()
   const query = new URLSearchParams(window.location.search);
   const restored = query.get('booking') !== 'success' && restoreCheckoutDraft();
   // Pre-fill from URL params (?location=Isle+of+Palms&date=2026-06-15&days=5)
