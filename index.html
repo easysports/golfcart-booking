@@ -2382,6 +2382,26 @@ async function onsiteUpload(kind) {
   }
 }
 
+// [patch39e5122-onsite-success-link-and-smoke-v1] Stripe success page → GET /public/onsite/checklist-link?session_id= → the open-checklist button
+async function onsiteChecklistLink(sessionId, attempt = 0) {
+  try {
+    const r = await fetch(`${API}/public/onsite/checklist-link?session_id=${encodeURIComponent(sessionId)}`, { cache: 'no-store' });
+    if (r.status === 202 && attempt < 20) { setTimeout(() => onsiteChecklistLink(sessionId, attempt + 1), 3000); return; }
+    if (!r.ok) return; // 404: the text/email copy stays
+    const j = await r.json();
+    if (!j?.ok || !j.url) return;
+    const card = document.querySelector('.success-card'); if (!card) return;
+    const existing = card.querySelector('.btn-primary');
+    const btn = document.createElement('a');
+    btn.className = 'btn-primary onsite-btn'; btn.href = j.url; btn.textContent = '✅ Open your checklist';
+    btn.style.maxWidth = '320px'; btn.style.margin = '20px auto 0';
+    if (existing) existing.parentNode.insertBefore(btn, existing); else card.appendChild(btn);
+    const sub = card.querySelector('.success-sub');
+    if (sub) sub.innerHTML = sub.innerHTML.replace("We're texting and emailing your checklist link now: open it", "Your checklist is ready (we're texting and emailing the link too): open it");
+    setTimeout(() => { if (document.visibilityState === 'visible') window.location.href = j.url; }, 2000);
+  } catch (_) { /* the text/email copy stays */ }
+}
+
 // ── Boot: which mode? ─────────────────────────────────────────────────────────
 (function onsiteBoot() {
   const p = new URLSearchParams(window.location.search);
@@ -2397,6 +2417,9 @@ async function onsiteUpload(kind) {
         const sub = document.querySelector('.success-sub');
         if (sub) sub.innerHTML = `Cart #${onsiteEsc(pending.cart)} at ${onsiteEsc(pending.site)} is yours. We're texting and emailing your checklist link now: open it to sign the waiver, record a quick walk-around video, and get your key code.<br><br>Questions? Call or text us anytime at <strong>${onsiteEsc(ONSITE_PHONE)}</strong>.`;
         localStorage.removeItem('onsite_pending_39e5119');
+        // [patch39e5122-onsite-success-link-and-smoke-v1] the checklist opens straight from this page: exchange the paid session id for the link (retry the webhook race for 60 s)
+        const sessionId = p.get('session_id');
+        if (sessionId && /^cs_[A-Za-z0-9_]{8,}$/.test(sessionId)) onsiteChecklistLink(sessionId);
       }
     } catch (_) {}
   }
