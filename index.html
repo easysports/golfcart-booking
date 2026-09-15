@@ -698,6 +698,37 @@
     to   { opacity: 1; transform: translateY(0); }
   }
   .step-page.active { animation: fadeIn 0.25s ease; }
+
+  /* [patch39e5119-onsite-booking-site-v1] on-site (QR) landing + guest checklist */
+  #onsite-card { display:none; }
+  .onsite-head { display:flex; gap:14px; align-items:flex-start; margin-bottom:14px; }
+  .onsite-photo { width:72px; height:72px; border-radius:14px; background:#eef6fb; display:flex; align-items:center; justify-content:center; font-size:38px; flex:0 0 auto; }
+  .onsite-title { font-family:'Nunito',sans-serif; font-weight:800; font-size:22px; color:var(--text); margin-bottom:4px; }
+  .onsite-sub { font-size:14px; color:var(--sub); line-height:1.45; margin:4px 0; }
+  .onsite-plain { text-align:center; padding:18px 4px; }
+  .onsite-btn { display:block; width:100%; text-align:center; margin-top:12px; text-decoration:none; box-sizing:border-box; }
+  .onsite-btn.disabled { opacity:.55; pointer-events:none; }
+  .onsite-mini { display:inline-block; width:auto; padding:6px 12px; margin-left:8px; font-size:13px; }
+  .onsite-grid { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+  .onsite-check { display:flex; gap:10px; align-items:flex-start; font-size:13px; color:var(--sub); line-height:1.5; margin:10px 0; cursor:pointer; }
+  .onsite-check input { width:18px; height:18px; margin-top:2px; accent-color:var(--brand); flex:0 0 auto; }
+  .onsite-taken { font-size:13px; color:#b35c00; background:#fff7df; border:1px solid #f1c75b; border-radius:8px; padding:8px 10px; margin:6px 0 12px; }
+  .onsite-price { background:#f7fafc; border:1px solid #e2e8f0; border-radius:10px; padding:12px 14px; margin:8px 0 14px; }
+  .onsite-row { display:flex; justify-content:space-between; gap:12px; font-size:14px; color:var(--text); padding:4px 0; }
+  .onsite-row.onsite-total { border-top:1px solid #e2e8f0; margin-top:6px; padding-top:10px; font-weight:800; font-size:17px; }
+  .onsite-foot { font-size:12px; color:var(--sub); margin-top:14px; line-height:1.5; }
+  .onsite-steps { margin:14px 0; }
+  .onsite-step { display:flex; gap:12px; padding:12px 0; border-top:1px solid #edf2f7; }
+  .onsite-tick { width:28px; height:28px; border-radius:50%; border:2px solid #cbd5e0; display:flex; align-items:center; justify-content:center; font-weight:800; color:#94a3b8; flex:0 0 auto; }
+  .onsite-step.done .onsite-tick { background:var(--brand); border-color:var(--brand); color:#fff; }
+  .onsite-step-body { flex:1; min-width:0; }
+  .onsite-step-label { font-weight:800; color:var(--text); font-size:15px; }
+  .onsite-step.done .onsite-step-label { color:var(--sub); text-decoration:line-through; }
+  .onsite-key { font-size:20px; line-height:1.4; margin:8px 0; color:var(--text); }
+  .onsite-key strong { font-size:40px; letter-spacing:6px; display:block; margin:6px 0; color:var(--brand); }
+  .onsite-progress { height:8px; background:#e2e8f0; border-radius:6px; overflow:hidden; margin-top:10px; }
+  .onsite-progress > div { height:100%; background:var(--brand); transition:width .2s; }
+  .onsite-file-btn { cursor:pointer; }
 </style>
 </head>
 <body>
@@ -738,6 +769,8 @@
 </div>
 
 <div class="main">
+  <!-- [patch39e5119-onsite-booking-site-v1] on-site (QR) landing and guest checklist; the normal flow is hidden in these modes -->
+  <div class="card" id="onsite-card"></div>
 
   <!-- STEP INDICATOR -->
   <div class="steps">
@@ -1441,7 +1474,8 @@ function applyPublicRates39E595(payload) {
 
 function calcTotals(basePrice, deliveryFee, qty) {
   const rental    = basePrice * (qty || 1);
-  const subtotal  = rental + deliveryFee;
+  const fee = (typeof ONSITE !== 'undefined' && ONSITE.mode === 'landing') ? 0 : deliveryFee; // [patch39e5119-onsite-booking-site-v1] no delivery fee in on-site mode (no pill)
+  const subtotal  = rental + fee;
   const surcharge = Math.round(subtotal * surchargeRate * 100) / 100;
   const tax       = Math.round(subtotal * taxRate * 100) / 100;
   const total     = Math.round((subtotal + surcharge + tax) * 100) / 100;
@@ -2047,6 +2081,327 @@ if (urlParams.get('booking') === 'success') {
       <button class="btn-primary" style="margin-top:24px;max-width:280px;" onclick="window.location.href='/'">Book Another Cart</button>
     </div>`;
 }
+
+// ═══ [patch39e5119-onsite-booking-site-v1] Carolina One self-serve rentals ══════════════════════════
+// Two modes on top of the normal page, both self-contained:
+//   /?onsite=<cart>          the QR sticker: per-cart availability, season rate minus delivery, 1-7 days, pay
+//   /?onsite_status=<token>  the guest checklist: waiver → walk-around video → key code → after-video → closed
+// The token stays in the URL of the checklist page only and is never logged.
+const ONSITE_PHONE = '(843) 800-0310';
+const ONSITE_PHONE_TEL = 'tel:8438000310';
+const ONSITE_MAX_VIDEO_BYTES = 500 * 1024 * 1024;
+const ONSITE = { mode: null, cartNumber: null, card: null, start: null, days: null, token: null, status: null, poll: null, uploads: {}, busy: false };
+
+function onsiteEsc(v) { return String(v ?? '').replace(/[&<>"']/g, c => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c])); }
+function onsiteTodayISO() { return localISODate(new Date()); }
+function onsiteISOPlus(days) { const d = new Date(); d.setDate(d.getDate() + days); return localISODate(d); }
+function onsiteFmtDate(iso) { try { return fmtDate(iso); } catch (_) { return iso; } }
+function onsiteRangesOverlap(aStart, aEnd, bStart, bEnd) { return aStart <= bEnd && bStart <= aEnd; } // inclusive of end dates on both sides, as the server
+function onsiteHidePage() {
+  document.querySelectorAll('.steps, .step-page').forEach(el => { el.style.display = 'none'; });
+  const pill = document.getElementById('content-hero-pill-delivery'); if (pill?.parentElement) pill.parentElement.style.display = 'none';
+  const card = document.getElementById('onsite-card'); if (card) card.style.display = 'block';
+}
+function onsiteRender(html) { const card = document.getElementById('onsite-card'); if (card) card.innerHTML = html; }
+function onsiteNotice(kind, text) {
+  const el = document.getElementById('onsite-notice'); if (!el) return;
+  el.className = `location-rule ${kind}`; el.textContent = text; el.style.display = text ? 'block' : 'none';
+}
+function onsitePlainCard(title, body) {
+  onsiteRender(`<div class="onsite-plain"><div class="onsite-title">${onsiteEsc(title)}</div><p class="onsite-sub">${body}</p>
+    <a class="btn-primary onsite-btn" href="${ONSITE_PHONE_TEL}">Call or text ${onsiteEsc(ONSITE_PHONE)}</a></div>`);
+}
+
+// ── A. QR landing ────────────────────────────────────────────────────────────
+async function onsiteLanding(cartNumber) {
+  ONSITE.mode = 'landing'; ONSITE.cartNumber = cartNumber;
+  onsiteHidePage();
+  onsiteRender(`<div class="onsite-plain"><div class="onsite-title">Checking cart #${onsiteEsc(cartNumber)}…</div></div>`);
+  let card = null;
+  try {
+    const r = await fetch(`${API}/public/onsite/cart/${encodeURIComponent(cartNumber)}`, { cache: 'no-store' });
+    if (!r.ok) throw new Error(String(r.status));
+    card = await r.json();
+  } catch (_) {
+    onsitePlainCard(`This cart isn't set up for self-serve booking yet.`, `Call or text <strong>${onsiteEsc(ONSITE_PHONE)}</strong> and we'll sort it out.`);
+    return;
+  }
+  ONSITE.card = card;
+  ONSITE.start = null; ONSITE.days = null;
+  const priced = (card.pricing?.priced_days || []).map(Number).sort((a, b) => a - b);
+  ONSITE.days = priced[0] || null;
+  onsiteRenderLanding();
+}
+function onsiteQuote() {
+  const c = ONSITE.card; if (!c || !ONSITE.days) return null;
+  const base = Number(c.pricing?.total_by_days?.[String(ONSITE.days)]);
+  if (!Number.isFinite(base) || base <= 0) return null;
+  const surchargeRateOn = Number(c.pricing?.surcharge_rate ?? 0.03), taxRateOn = Number(c.pricing?.tax_rate ?? 0.09);
+  const subtotal = base;                                      // delivery fee 0: no fee line, no pill
+  const surcharge = Math.round(subtotal * surchargeRateOn * 100) / 100;
+  const tax = Math.round(subtotal * taxRateOn * 100) / 100;
+  const total = Math.round((subtotal + surcharge + tax) * 100) / 100;
+  return { base, surcharge, tax, total, surchargeRate: surchargeRateOn, taxRate: taxRateOn };
+}
+function onsiteEndDate() { return ONSITE.start && ONSITE.days ? addDays(ONSITE.start, ONSITE.days) : null; }
+function onsiteDatesFree() {
+  if (!ONSITE.start || !ONSITE.days) return false;
+  const end = onsiteEndDate();
+  return !(ONSITE.card?.taken || []).some(t => onsiteRangesOverlap(ONSITE.start, end, t.start_date, t.end_date));
+}
+function onsiteRenderLanding() {
+  const c = ONSITE.card;
+  const priced = (c.pricing?.priced_days || []).map(Number).sort((a, b) => a - b);
+  const min = onsiteTodayISO(), max = onsiteISOPlus(60);
+  const dayOptions = [];
+  for (let d = Number(c.min_days || 1); d <= Number(c.max_days || 7); d++) {
+    const ok = priced.includes(d);
+    dayOptions.push(`<option value="${d}" ${ok ? '' : 'disabled'} ${ONSITE.days === d ? 'selected' : ''}>${d} day${d === 1 ? '' : 's'}${ok ? ` — ${fmtMoney(Number(c.pricing.total_by_days[String(d)]))}` : ' — not available'}</option>`);
+  }
+  const taken = (c.taken || []).map(t => `${onsiteFmtDate(t.start_date)} → ${onsiteFmtDate(t.end_date)}`);
+  onsiteRender(`
+    <div class="onsite-head">
+      <div class="onsite-photo" aria-hidden="true">🛺</div>
+      <div>
+        <div class="onsite-title">Cart #${onsiteEsc(c.cart.number)} at ${onsiteEsc(c.site.name)}</div>
+        <div class="onsite-sub">${onsiteEsc(c.site.address)}${c.cart.color ? ` · ${onsiteEsc(c.cart.color)}` : ''}${c.cart.seats ? ` · ${onsiteEsc(c.cart.seats)} seats` : ''}</div>
+        <div class="onsite-sub">Book this cart for your stay. No delivery: it's already here.</div>
+      </div>
+    </div>
+    <div id="onsite-notice" class="location-rule info" style="display:none"></div>
+    <div class="form-group"><label for="onsite-date">First day</label>
+      <input type="date" id="onsite-date" min="${min}" max="${max}" value="${ONSITE.start || ''}" onchange="onsiteOnDate()"></div>
+    <div class="form-group"><label for="onsite-days">How many days (1–7)</label>
+      <select id="onsite-days" onchange="onsiteOnDays()">${dayOptions.join('')}</select></div>
+    ${taken.length ? `<div class="onsite-taken">Already booked: ${taken.map(onsiteEsc).join(' · ')}</div>` : ''}
+    <div id="onsite-price" class="onsite-price"></div>
+    <div class="form-group"><label for="onsite-promo">Promo code (optional)</label><input type="text" id="onsite-promo" placeholder="Promo code" autocomplete="off"></div>
+    <div class="onsite-grid">
+      <div class="form-group"><label for="onsite-fname">First name</label><input type="text" id="onsite-fname" placeholder="First" oninput="onsiteRefresh()"></div>
+      <div class="form-group"><label for="onsite-lname">Last name</label><input type="text" id="onsite-lname" placeholder="Last" oninput="onsiteRefresh()"></div>
+    </div>
+    <div class="form-group"><label for="onsite-email">Email</label><input type="email" id="onsite-email" placeholder="you@example.com" oninput="onsiteRefresh()"></div>
+    <div class="form-group"><label for="onsite-phone">Mobile (we text you the key code)</label><input type="tel" id="onsite-phone" placeholder="(843) 555-0100" oninput="onsiteRefresh()"></div>
+    <label class="onsite-check"><input type="checkbox" id="onsite-sms" checked> Text me my confirmation and key code</label>
+    <label class="onsite-check"><input type="checkbox" id="onsite-terms" onchange="onsiteRefresh()"> I'm 21+, every driver will sign the waiver, and I agree to the rental policies (no beach or dune driving, plug the cart in each night, return the key to the lockbox when done).</label>
+    <button class="btn-primary onsite-btn" id="onsite-pay" onclick="onsitePay()" disabled>🔒 Book this cart — pay now</button>
+    <div class="onsite-foot">Every price shown is what you'll be charged: rental + ${Math.round(Number(c.pricing?.surcharge_rate ?? 0.03) * 100)}% surcharge + ${Math.round(Number(c.pricing?.tax_rate ?? 0.09) * 100)}% SC sales tax. Questions? <a href="${ONSITE_PHONE_TEL}">${onsiteEsc(ONSITE_PHONE)}</a></div>
+  `);
+  onsiteRefresh();
+}
+function onsiteOnDate() { ONSITE.start = document.getElementById('onsite-date')?.value || null; onsiteRefresh(); }
+function onsiteOnDays() { ONSITE.days = Number(document.getElementById('onsite-days')?.value) || null; onsiteRefresh(); }
+function onsiteRefresh() {
+  const q = onsiteQuote();
+  const priceEl = document.getElementById('onsite-price');
+  if (priceEl) {
+    if (!q || !ONSITE.start) priceEl.innerHTML = `<div class="onsite-sub">Pick your first day and how many days to see the price.</div>`;
+    else priceEl.innerHTML = `
+      <div class="onsite-row"><span>${ONSITE.days}-day rental · ${onsiteFmtDate(ONSITE.start)} → ${onsiteFmtDate(onsiteEndDate())}</span><span>${fmtMoney(q.base)}</span></div>
+      <div class="onsite-row"><span>Delivery</span><span>none — the cart is at the house</span></div>
+      <div class="onsite-row"><span>Rental surcharge (${Math.round(q.surchargeRate * 100)}%)</span><span>+${fmtMoney(q.surcharge)}</span></div>
+      <div class="onsite-row"><span>SC sales tax (${Math.round(q.taxRate * 100)}%)</span><span>+${fmtMoney(q.tax)}</span></div>
+      <div class="onsite-row onsite-total"><span>Total today</span><span>${fmtMoney(q.total)}</span></div>`;
+  }
+  let notice = '';
+  if (ONSITE.start && ONSITE.days && !onsiteDatesFree()) notice = 'Those dates are already booked for this cart. Please pick different days.';
+  onsiteNotice(notice ? 'block' : 'info', notice);
+  const v = id => (document.getElementById(id)?.value || '').trim();
+  const ready = !!(q && ONSITE.start && onsiteDatesFree() && v('onsite-fname') && v('onsite-lname') && v('onsite-email').includes('@') && v('onsite-phone').replace(/\D/g, '').length >= 7 && document.getElementById('onsite-terms')?.checked);
+  const btn = document.getElementById('onsite-pay'); if (btn && !ONSITE.busy) btn.disabled = !ready;
+}
+async function onsitePay() {
+  if (ONSITE.busy) return;
+  const q = onsiteQuote(); if (!q || !ONSITE.start || !onsiteDatesFree()) { onsiteRefresh(); return; }
+  const v = id => (document.getElementById(id)?.value || '').trim();
+  const btn = document.getElementById('onsite-pay');
+  ONSITE.busy = true; btn.disabled = true; btn.textContent = '⏳ Creating your booking…';
+  try {
+    const res = await fetch(`${API}/bookings/checkout-session`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        onsite_cart: ONSITE.card.cart.number,
+        cart_type: ONSITE.card.cart.cart_type,
+        start_date: ONSITE.start,
+        duration_days: ONSITE.days,
+        delivery_fee: 0,
+        zone: ONSITE.card.site.zone,
+        delivery_address: ONSITE.card.site.address,
+        property_name: ONSITE.card.site.name,
+        location_acknowledged: true,
+        return_url: `${window.location.origin}${window.location.pathname}`,
+        arrival_time: null,
+        customer_first_name: v('onsite-fname'), customer_last_name: v('onsite-lname'),
+        customer_email: v('onsite-email'), customer_phone: v('onsite-phone'),
+        sms_opt_in: !!document.getElementById('onsite-sms')?.checked,
+        notes: null,
+        quantity: 1,
+        promo_code: v('onsite-promo') || undefined,
+      }),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (res.status === 409 && data.code === 'ONSITE_CART_TAKEN') {
+      if (Array.isArray(data.taken)) ONSITE.card.taken = data.taken;
+      else { try { const r = await fetch(`${API}/public/onsite/cart/${encodeURIComponent(ONSITE.cartNumber)}`, { cache: 'no-store' }); if (r.ok) ONSITE.card = await r.json(); } catch (_) {} }
+      onsiteRenderLanding();
+      onsiteNotice('block', 'Someone just booked this cart for those dates. Please pick different days.');
+      return;
+    }
+    if (!res.ok || !data.checkout_url) throw new Error(data.error || `Booking failed (${res.status})`);
+    try { localStorage.setItem('onsite_pending_39e5119', JSON.stringify({ cart: ONSITE.card.cart.number, site: ONSITE.card.site.name, at: Date.now() })); } catch (_) {}
+    window.location.href = data.checkout_url;
+  } catch (e) {
+    onsiteNotice('block', `Something went wrong: ${e.message}. Call or text ${ONSITE_PHONE}.`);
+  } finally {
+    ONSITE.busy = false;
+    if (btn) { btn.textContent = '🔒 Book this cart — pay now'; onsiteRefresh(); }
+  }
+}
+
+// ── B. Checklist ─────────────────────────────────────────────────────────────
+async function onsiteChecklist(token) {
+  ONSITE.mode = 'checklist'; ONSITE.token = token;
+  onsiteHidePage();
+  onsiteRender(`<div class="onsite-plain"><div class="onsite-title">Loading your rental…</div></div>`);
+  await onsiteRefreshStatus(true);
+  const tick = () => { if (document.visibilityState === 'visible' && ONSITE.mode === 'checklist' && ONSITE.status) onsiteRefreshStatus(false); };
+  ONSITE.poll = setInterval(tick, 5000);
+  document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') tick(); });
+}
+async function onsiteRefreshStatus(first) {
+  if (ONSITE.busy && !first) return;
+  try {
+    const r = await fetch(`${API}/public/onsite/status?t=${encodeURIComponent(ONSITE.token)}`, { cache: 'no-store' });
+    if (r.status === 401) { if (ONSITE.poll) clearInterval(ONSITE.poll); ONSITE.status = null; onsitePlainCard('This link has expired.', `Text us at <strong>${onsiteEsc(ONSITE_PHONE)}</strong> and we'll send a fresh one.`); return; }
+    if (!r.ok) { if (first) onsitePlainCard(`We can't load your rental right now.`, `Try again in a minute, or text <strong>${onsiteEsc(ONSITE_PHONE)}</strong>.`); return; }
+    ONSITE.status = await r.json();
+    onsiteRenderChecklist();
+  } catch (_) {
+    if (first) onsitePlainCard(`We can't load your rental right now.`, `Check your connection and try again, or text <strong>${onsiteEsc(ONSITE_PHONE)}</strong>.`);
+  }
+}
+function onsiteStep(done, label, extra = '') {
+  return `<div class="onsite-step ${done ? 'done' : ''}"><div class="onsite-tick">${done ? '✓' : '○'}</div><div class="onsite-step-body"><div class="onsite-step-label">${label}</div>${extra}</div></div>`;
+}
+function onsiteVideoBlock(kind, primary) {
+  const up = ONSITE.uploads[kind] || {};
+  const inputId = `onsite-file-${kind}`;
+  const hint = kind === 'before'
+    ? 'Walk around the cart slowly; film every side, the seats and the dash. About 30 seconds is plenty.'
+    : 'Walk around the cart slowly; film every side, the seats and the dash. Then put the key back in the lockbox.';
+  const progress = up.state === 'uploading' ? `<div class="onsite-progress"><div style="width:${Math.round(up.pct || 0)}%"></div></div><div class="onsite-sub">Uploading… ${Math.round(up.pct || 0)}%</div>`
+    : up.state === 'finalizing' ? `<div class="onsite-sub">Saving your video…</div>`
+    : up.state === 'error' ? `<div class="location-rule block">${onsiteEsc(up.error)} <button class="btn-secondary onsite-mini" onclick="onsiteRetry('${kind}')">Try again</button></div>` : '';
+  return `<div class="onsite-sub">${hint}</div>
+    <label class="btn-${primary ? 'primary' : 'secondary'} onsite-btn onsite-file-btn ${up.state === 'uploading' || up.state === 'finalizing' ? 'disabled' : ''}">
+      ${kind === 'before' ? '🎥 Record walk-around video' : '🎥 Record after-video'}
+      <input type="file" id="${inputId}" accept="video/*" capture="environment" style="display:none" onchange="onsiteFileChosen('${kind}', this)">
+    </label>${progress}`;
+}
+function onsiteRenderChecklist() {
+  const s = ONSITE.status; if (!s) return;
+  const st = s.steps || {}; const b = s.booking || {};
+  const next = s.next;
+  const title = next === 'closed' ? 'All set — thanks!' : `Your cart #${onsiteEsc(b.cart_number)} at ${onsiteEsc(b.site_name)}`;
+  const keyExtra = s.key_code
+    ? `<div class="onsite-key">Lockbox code <strong>${onsiteEsc(s.key_code)}</strong> — windshield box. Plug the cart in each night.</div><div class="onsite-sub">We've also texted it to you.</div>`
+    : (st.before_video && st.waiver_signed && st.paid ? `<div class="onsite-sub">Your code appears on ${onsiteFmtDate(b.start_date)} once the waiver and video are done.</div>` : `<div class="onsite-sub">Appears after the waiver and walk-around video, on ${onsiteFmtDate(b.start_date)}.</div>`);
+  const afterPrimary = next === 'after_video';
+  onsiteRender(`
+    <div class="onsite-title">${title}</div>
+    <div class="onsite-sub">${onsiteEsc(b.ref || '')} · ${onsiteFmtDate(b.start_date)} → ${onsiteFmtDate(b.end_date)}${b.site_address ? ` · ${onsiteEsc(b.site_address)}` : ''}</div>
+    ${(s.messages || []).map(m => `<div class="location-rule info">${onsiteEsc(m)}</div>`).join('')}
+    <div class="onsite-steps">
+      ${onsiteStep(st.paid, 'Paid', st.paid ? '' : `<div class="onsite-sub">We're waiting on your payment. If you just paid, this updates in a moment.</div>`)}
+      ${onsiteStep(st.waiver_signed, 'Waiver signed', st.waiver_signed ? '' : `<div class="onsite-sub">Every driver signs. Takes about a minute.</div><a class="btn-primary onsite-btn" href="${onsiteEsc(s.waiver_url || '#')}" target="_blank" rel="noopener">✍️ Sign the waiver</a>`)}
+      ${onsiteStep(st.before_video, 'Walk-around video', st.before_video ? '' : (st.waiver_signed ? onsiteVideoBlock('before', true) : `<div class="onsite-sub">Sign the waiver first, then record a quick walk-around.</div>`))}
+      ${onsiteStep(st.key, 'Key code', keyExtra)}
+      ${onsiteStep(st.after_video, 'After-video', st.after_video ? `<div class="onsite-sub">Thanks — your rental is closed.</div>` : (st.key ? onsiteVideoBlock('after', afterPrimary) : `<div class="onsite-sub">When your rental ends, record a quick after-video and put the key back in the lockbox.</div>`))}
+    </div>
+    <div class="onsite-foot">Need a hand? Call or text <a href="${ONSITE_PHONE_TEL}">${onsiteEsc(ONSITE_PHONE)}</a>.</div>
+  `);
+}
+function onsiteFileChosen(kind, input) {
+  const file = input?.files?.[0]; if (!file) return;
+  if (file.size > ONSITE_MAX_VIDEO_BYTES) { ONSITE.uploads[kind] = { state: 'error', error: `That video is too large (${Math.round(file.size / 1048576)} MB). Please record a shorter clip (under ${Math.round(ONSITE_MAX_VIDEO_BYTES / 1048576)} MB).` }; onsiteRenderChecklist(); return; }
+  const prev = ONSITE.uploads[kind] || {};
+  const fingerprint = `${kind}|${file.size}|${file.lastModified}|${file.name}`.slice(0, 120);
+  ONSITE.uploads[kind] = { state: 'uploading', pct: 0, file, fingerprint, session_id: prev.fingerprint === fingerprint ? prev.session_id : null, key: prev.fingerprint === fingerprint ? prev.key : null };
+  onsiteRenderChecklist();
+  onsiteUpload(kind).catch(() => {});
+}
+function onsiteRetry(kind) {
+  const up = ONSITE.uploads[kind];
+  if (up?.file) { up.state = 'uploading'; up.pct = 0; onsiteRenderChecklist(); onsiteUpload(kind).catch(() => {}); }
+  else { ONSITE.uploads[kind] = {}; onsiteRenderChecklist(); }
+}
+async function onsiteUpload(kind) {
+  const up = ONSITE.uploads[kind]; const file = up.file;
+  ONSITE.busy = true;
+  try {
+    // 1) presign: the server dedupes by delivery + fingerprint, so a retry gets the same session back
+    const pr = await fetch(`${API}/public/onsite/video-upload-url?t=${encodeURIComponent(ONSITE.token)}`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ kind, filename: file.name || `${kind}.mp4`, size: file.size, content_type: file.type || 'video/mp4', fingerprint: up.fingerprint }),
+    });
+    const presign = await pr.json().catch(() => ({}));
+    if (pr.status === 429) throw new Error('Too many upload attempts. Please wait an hour and try again.');
+    if (!pr.ok) throw new Error(presign.error || `Upload could not start (${pr.status})`);
+    if (presign.expectedSize && Number(presign.expectedSize) !== file.size) throw new Error('That file changed size since you picked it. Please choose it again.');
+    up.session_id = presign.session_id; up.key = presign.key;
+    if (presign.confirmed_visible) { up.state = 'finalizing'; }
+    else {
+      // 2) PUT straight to storage with progress
+      await new Promise((resolve, reject) => {
+        const xhr = new XMLHttpRequest();
+        xhr.open('PUT', presign.uploadUrl, true);
+        const headers = presign.uploadHeaders || { 'Content-Type': presign.contentType || file.type || 'video/mp4' };
+        Object.entries(headers).forEach(([k, v]) => { try { xhr.setRequestHeader(k, v); } catch (_) {} });
+        xhr.upload.onprogress = (e) => { if (e.lengthComputable) { up.pct = (e.loaded / e.total) * 100; onsiteRenderChecklist(); } };
+        xhr.onload = () => (xhr.status >= 200 && xhr.status < 300) ? resolve() : reject(new Error(`Upload failed (${xhr.status}). Please try again.`));
+        xhr.onerror = () => reject(new Error('Upload failed. Check your connection and try again.'));
+        xhr.send(file);
+      });
+      up.state = 'finalizing'; onsiteRenderChecklist();
+    }
+    // 3) finalise on the server (same session id, so a retry never creates a second one)
+    const fr = await fetch(`${API}/public/onsite/video-uploaded?t=${encodeURIComponent(ONSITE.token)}`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ kind, upload_session_id: up.session_id, key: up.key, expected_size: file.size, completion_method: 'browser_put' }),
+    });
+    const fin = await fr.json().catch(() => ({}));
+    if (!fr.ok) throw new Error(fin.error || `We couldn't save that video (${fr.status}). Please try again.`);
+    ONSITE.uploads[kind] = { state: 'done', fingerprint: up.fingerprint, session_id: up.session_id, key: up.key };
+    if (fin.status_page) { ONSITE.status = fin.status_page; onsiteRenderChecklist(); }
+  } catch (e) {
+    ONSITE.uploads[kind] = { ...up, state: 'error', error: e.message };
+    onsiteRenderChecklist();
+  } finally {
+    ONSITE.busy = false;
+    onsiteRefreshStatus(false);
+  }
+}
+
+// ── Boot: which mode? ─────────────────────────────────────────────────────────
+(function onsiteBoot() {
+  const p = new URLSearchParams(window.location.search);
+  const statusToken = p.get('onsite_status');
+  const cart = p.get('onsite');
+  if (statusToken) { onsiteChecklist(statusToken); return; }
+  if (cart && /^\d{1,4}$/.test(cart)) { onsiteLanding(cart); return; }
+  // Stripe success return after an on-site booking: the checklist link is delivered by text and email (the server signs it)
+  if (p.get('booking') === 'success') {
+    try {
+      const pending = JSON.parse(localStorage.getItem('onsite_pending_39e5119') || 'null');
+      if (pending && Date.now() - Number(pending.at || 0) < 6 * 3600 * 1000) {
+        const sub = document.querySelector('.success-sub');
+        if (sub) sub.innerHTML = `Cart #${onsiteEsc(pending.cart)} at ${onsiteEsc(pending.site)} is yours. We're texting and emailing your checklist link now: open it to sign the waiver, record a quick walk-around video, and get your key code.<br><br>Questions? Call or text us anytime at <strong>${onsiteEsc(ONSITE_PHONE)}</strong>.`;
+        localStorage.removeItem('onsite_pending_39e5119');
+      }
+    } catch (_) {}
+  }
+})();
+
 </script>
 </body>
 </html>
