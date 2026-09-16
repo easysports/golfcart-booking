@@ -2183,7 +2183,7 @@ function onsiteRenderLanding() {
     <div class="form-group"><label for="onsite-email">Email</label><input type="email" id="onsite-email" placeholder="you@example.com" oninput="onsiteRefresh()"></div>
     <div class="form-group"><label for="onsite-phone">Mobile (we text you the key code)</label><input type="tel" id="onsite-phone" placeholder="(843) 555-0100" oninput="onsiteRefresh()"></div>
     <label class="onsite-check"><input type="checkbox" id="onsite-sms" checked> Text me my confirmation and key code</label>
-    <label class="onsite-check"><input type="checkbox" id="onsite-terms" onchange="onsiteRefresh()"> I'm 21+, every driver will sign the waiver, and I agree to the rental policies (no beach or dune driving, plug the cart in each night, return the key to the lockbox when done).</label>
+    <label class="onsite-check"><input type="checkbox" id="onsite-terms" onchange="onsiteRefresh()"> I agree to the rental terms and authorize GolfCart.Fun to keep my card on file and charge the daily rate for any day the cart is used after my rental ends, until I return the key and the lockbox code is changed.</label> <!-- [patch39e5123-onsite-card-on-file-usage-charges-v1] -->
     <button class="btn-primary onsite-btn" id="onsite-pay" onclick="onsitePay()" disabled>🔒 Book this cart — pay now</button>
     <div class="onsite-foot">Every price shown is what you'll be charged: rental + ${Math.round(Number(c.pricing?.surcharge_rate ?? 0.03) * 100)}% surcharge + ${Math.round(Number(c.pricing?.tax_rate ?? 0.09) * 100)}% SC sales tax. Questions? <a href="${ONSITE_PHONE_TEL}">${onsiteEsc(ONSITE_PHONE)}</a></div>
   `);
@@ -2304,7 +2304,7 @@ function onsiteRenderChecklist() {
   const next = s.next;
   const title = next === 'closed' ? 'All set — thanks!' : `Your cart #${onsiteEsc(b.cart_number)} at ${onsiteEsc(b.site_name)}`;
   const keyExtra = s.key_code
-    ? `<div class="onsite-key">Lockbox code <strong>${onsiteEsc(s.key_code)}</strong> — windshield box. Plug the cart in each night.</div><div class="onsite-sub">We've also texted it to you.</div>`
+    ? `<div class="onsite-key">Lockbox code <strong>${onsiteEsc(s.key_code)}</strong> — windshield box. Plug the cart in each night.</div><div class="onsite-sub">We've also texted it to you.</div><div class="onsite-sub">Your card stays on file. Days the cart is used after ${onsiteFmtDate(b.end_date)} are charged at the day rate.</div>` /* [patch39e5123-onsite-card-on-file-usage-charges-v1] */
     : (st.before_video && st.waiver_signed && st.paid ? `<div class="onsite-sub">Your code appears on ${onsiteFmtDate(b.start_date)} once the waiver and video are done.</div>` : `<div class="onsite-sub">Appears after the waiver and walk-around video, on ${onsiteFmtDate(b.start_date)}.</div>`);
   const afterPrimary = next === 'after_video';
   onsiteRender(`
