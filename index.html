@@ -2177,7 +2177,7 @@ function onsiteRenderLanding() {
         <div class="onsite-title">Cart #${onsiteEsc(c.cart.number)} at ${onsiteEsc(c.site.name)}</div>
         <div class="onsite-sub">${onsiteEsc(c.site.address)}${c.cart.color ? ` · ${onsiteEsc(c.cart.color)}` : ''}${c.cart.seats ? ` · ${onsiteEsc(c.cart.seats)} seats` : ''}</div>
         <div class="onsite-sub">Book this cart for your stay. No delivery: it's already here.</div>
-        {videoUrl ? `<a class="onsite-sub onsite-video-link" href="${onsiteEsc(videoUrl)}" target="_blank" rel="noopener">▶ How to operate this cart</a>` : ''} <!-- [patch39e6006-lockbox-set-code-electric-video-v1] -->
+        ${videoUrl ? `<a class="onsite-sub onsite-video-link" href="${onsiteEsc(videoUrl)}" target="_blank" rel="noopener">▶ How to operate this cart</a>` : ''} <!-- [patch39e6006-lockbox-set-code-electric-video-v1] --> <!-- [patch39e6009-onsite-path-v1] the missing $ here broke the whole inline script on c82422d -->
       </div>
     </div>
     <div id="onsite-notice" class="location-rule info" style="display:none"></div>
@@ -2241,7 +2241,7 @@ async function onsitePay() {
         delivery_address: ONSITE.card.site.address,
         property_name: ONSITE.card.site.name,
         location_acknowledged: true,
-        return_url: `${window.location.origin}${window.location.pathname}`,
+        return_url: `${window.location.origin}/`, /* [patch39e6009-onsite-path-v1] always return to the root so the success card renders (not /c/<n>) */
         arrival_time: null,
         customer_first_name: v('onsite-fname'), customer_last_name: v('onsite-lname'),
         customer_email: v('onsite-email'), customer_phone: v('onsite-phone'),
@@ -2456,7 +2456,8 @@ async function onsiteChecklistLink(sessionId, attempt = 0) {
 (function onsiteBoot() {
   const p = new URLSearchParams(window.location.search);
   const statusToken = p.get('onsite_status');
-  const cart = p.get('onsite');
+  const pathCart = (window.location.pathname.match(/^\/c\/(\d+)$/) || [])[1] || null; /* [patch39e6009-onsite-path-v1] /c/<n> parses like ?onsite=<n> even when the vercel.json rewrite is bypassed; a Stripe return on the path still shows the success card */
+  const cart = p.get('onsite') || (p.get('booking') === 'success' ? null : pathCart);
   if (statusToken) { onsiteChecklist(statusToken); return; }
   if (cart && /^\d{1,4}$/.test(cart)) { onsiteLanding(cart); return; }
   // Stripe success return after an on-site booking: the checklist link is delivered by text and email (the server signs it)
