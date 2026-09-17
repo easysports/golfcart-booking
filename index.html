@@ -2197,12 +2197,13 @@ function onsiteRenderLanding() {
     <label class="onsite-check"><input type="checkbox" id="onsite-sms" checked> Text me my confirmation and key code</label>
     <label class="onsite-check"><input type="checkbox" id="onsite-terms" onchange="onsiteRefresh()"> I agree to the rental terms and authorize GolfCart.Fun to keep my card on file and charge the daily rate for each day the cart is used after my rental ends.</label> <!-- [patch39e5123-onsite-card-on-file-usage-charges-v1] --> <!-- [patch39e6006-lockbox-set-code-electric-video-v1] rotation is no longer part of the close -->
     <button class="btn-primary onsite-btn" id="onsite-pay" onclick="onsitePay()" disabled>🔒 Book this cart — pay now</button>
+    <div id="onsite-pay-error" class="location-rule block" style="display:none" role="alert"></div> <!-- [patch39e6011-onsite-booking-fails-silently-v1] -->
     <div class="onsite-foot">Every price shown is what you'll be charged: rental + ${Math.round(Number(c.pricing?.surcharge_rate ?? 0.03) * 100)}% surcharge + ${Math.round(Number(c.pricing?.tax_rate ?? 0.09) * 100)}% SC sales tax. Questions? <a href="${ONSITE_PHONE_TEL}">${onsiteEsc(ONSITE_PHONE)}</a></div>
   `);
   onsiteRefresh();
 }
-function onsiteOnDate() { ONSITE.start = document.getElementById('onsite-date')?.value || null; onsiteRefresh(); }
-function onsiteOnDays() { ONSITE.days = Number(document.getElementById('onsite-days')?.value) || null; onsiteRefresh(); }
+function onsiteOnDate() { ONSITE.start = document.getElementById('onsite-date')?.value || null; ONSITE.payError = null; onsiteRefresh(); } /* [patch39e6011-onsite-booking-fails-silently-v1] a new pick clears the last refusal */
+function onsiteOnDays() { ONSITE.days = Number(document.getElementById('onsite-days')?.value) || null; ONSITE.payError = null; onsiteRefresh(); }
 function onsiteRefresh() {
   const q = onsiteQuote();
   const priceEl = document.getElementById('onsite-price');
@@ -2218,6 +2219,8 @@ function onsiteRefresh() {
   let notice = '';
   if (ONSITE.start && ONSITE.days && !onsiteDatesFree()) notice = 'Those dates are already booked for this cart. Please pick different days.';
   onsiteNotice(notice ? 'block' : 'info', notice);
+  const payErr = document.getElementById('onsite-pay-error'); /* [patch39e6011-onsite-booking-fails-silently-v1] the refusal from checkout-session sits in red under the button and survives this refresh, which used to wipe it the moment the button came back */
+  if (payErr) { payErr.textContent = ONSITE.payError || ''; payErr.style.display = ONSITE.payError ? 'block' : 'none'; }
   const v = id => (document.getElementById(id)?.value || '').trim();
   const ready = !!(q && ONSITE.start && onsiteDatesFree() && v('onsite-fname') && v('onsite-lname') && v('onsite-email').includes('@') && v('onsite-phone').replace(/\D/g, '').length >= 7 && document.getElementById('onsite-terms')?.checked);
   const btn = document.getElementById('onsite-pay'); if (btn && !ONSITE.busy) btn.disabled = !ready;
@@ -2228,6 +2231,7 @@ async function onsitePay() {
   const v = id => (document.getElementById(id)?.value || '').trim();
   const btn = document.getElementById('onsite-pay');
   ONSITE.busy = true; btn.disabled = true; btn.textContent = '⏳ Creating your booking…';
+  ONSITE.payError = null; /* [patch39e6011-onsite-booking-fails-silently-v1] */
   try {
     const res = await fetch(`${API}/bookings/checkout-session`, {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -2256,19 +2260,20 @@ async function onsitePay() {
       onsitePlainCard('This cart is temporarily unavailable.', onsiteEsc(data.message || `Text us at ${ONSITE_PHONE}.`));
       return;
     }
-    if (res.status === 400 && data.code === 'ONSITE_DAYS_OUT_OF_RANGE') { onsiteNotice('block', data.error || `${data.min_days || 2}-day minimum`); return; }
+    if (res.status === 400 && data.code === 'ONSITE_DAYS_OUT_OF_RANGE') { ONSITE.payError = data.error || `${data.min_days || 2}-day minimum`; return; } /* [patch39e6011-onsite-booking-fails-silently-v1] sticky */
     if (res.status === 409 && data.code === 'ONSITE_CART_TAKEN') {
       if (Array.isArray(data.taken)) ONSITE.card.taken = data.taken;
       else { try { const r = await fetch(`${API}/public/onsite/cart/${encodeURIComponent(ONSITE.cartNumber)}`, { cache: 'no-store' }); if (r.ok) ONSITE.card = await r.json(); } catch (_) {} }
+      ONSITE.payError = 'Someone just booked this cart for those dates. Please pick different days.'; /* [patch39e6011-onsite-booking-fails-silently-v1] sticky */
       onsiteRenderLanding();
-      onsiteNotice('block', 'Someone just booked this cart for those dates. Please pick different days.');
       return;
     }
-    if (!res.ok || !data.checkout_url) throw new Error(data.error || `Booking failed (${res.status})`);
+    if (!res.ok) { ONSITE.payError = `${data.error || data.message || data.code || `Booking failed (${res.status})`} Call or text ${ONSITE_PHONE}.`; return; } /* [patch39e6011-onsite-booking-fails-silently-v1] every refusal is shown in red under the form */
+    if (!data.checkout_url) throw new Error('No checkout link came back');
     try { localStorage.setItem('onsite_pending_39e5119', JSON.stringify({ cart: ONSITE.card.cart.number, site: ONSITE.card.site.name, at: Date.now() })); } catch (_) {}
     window.location.href = data.checkout_url;
   } catch (e) {
-    onsiteNotice('block', `Something went wrong: ${e.message}. Call or text ${ONSITE_PHONE}.`);
+    ONSITE.payError = e && e.name === 'TypeError' ? "Couldn't reach the server — try again or text (843) 800-0310" : `Something went wrong: ${e.message}. Call or text ${ONSITE_PHONE}.`; /* [patch39e6011-onsite-booking-fails-silently-v1] fetch itself failing is a TypeError */
   } finally {
     ONSITE.busy = false;
     if (btn) { btn.textContent = '🔒 Book this cart — pay now'; onsiteRefresh(); }
