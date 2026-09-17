@@ -2338,7 +2338,7 @@ function onsiteRenderChecklist() {
     ${(s.messages || []).map(m => `<div class="location-rule info">${onsiteEsc(m)}</div>`).join('')}
     <div class="onsite-steps">
       ${onsiteStep(st.paid, 'Paid', st.paid ? '' : `<div class="onsite-sub">We're waiting on your payment. If you just paid, this updates in a moment.</div>`)}
-      ${onsiteStep(st.waiver_signed, 'Waiver signed', st.waiver_signed ? '' : `<div class="onsite-sub">Every driver signs. Takes about a minute.</div><a class="btn-primary onsite-btn" href="${onsiteEsc(s.waiver_url || '#')}" target="_blank" rel="noopener">✍️ Sign the waiver</a>`)}
+      ${onsiteStep(st.waiver_signed, 'Waiver signed', st.waiver_signed ? '' : `<div class="onsite-sub">Every driver signs. Takes about a minute.</div><a class="btn-primary onsite-btn" href="${onsiteEsc(onsiteWaiverHref(s.waiver_url))}">✍️ Sign the waiver</a>`)}
       ${onsiteStep(st.before_video, 'Walk-around video', st.before_video ? '' : (st.waiver_signed ? onsiteVideoBlock('before', true) : `<div class="onsite-sub">Sign the waiver first, then record a quick walk-around.</div>`))}
       ${onsiteStep(st.key, 'Key code', keyExtra)}
       ${onsiteStep(st.after_video, 'After-video', st.after_video ? `<div class="onsite-sub">Thanks — your rental is closed.</div>` : (st.key ? onsiteVideoBlock('after', afterPrimary) : `<div class="onsite-sub">When your rental ends, record a quick after-video and put the key back in the lockbox.</div>`))}
@@ -2349,6 +2349,9 @@ function onsiteRenderChecklist() {
 }
 // [patch39e6006-lockbox-set-code-electric-video-v1] operating_video_url is a /play link from the API (absolute), or a relative path on an older build; null when the fleet has not posted one.
 function onsiteOperatingVideoUrl(u) { if (!u) return null; const v = String(u); return v.startsWith('http') ? v : `${API}${v}`; }
+// [patch39e6014-waiver-return-to-checklist-v1] the waiver opens in this tab and carries return=<this checklist URL> (it already holds ?onsite_status=<token>), so
+// the signed screen can bring the guest straight back; the waiver page only follows a same-origin return.
+function onsiteWaiverHref(u) { if (!u) return '#'; return `${u}${String(u).includes('?') ? '&' : '?'}return=${encodeURIComponent(window.location.href)}`; }
 // [patch39e6004-site-copy-photo-help-v1] 39e6001 D — Need help? → one line (≤ 300 chars) → POST /public/onsite/help?t= → the office gets a Telegram with the booking phone.
 function onsiteHelpBlock() {
   const h = ONSITE.help || (ONSITE.help = { open: false, text: '', sending: false, sent: false, error: null });
