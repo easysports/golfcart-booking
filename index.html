@@ -703,6 +703,8 @@
   #onsite-card { display:none; }
   .onsite-head { display:flex; gap:14px; align-items:flex-start; margin-bottom:14px; }
   .onsite-photo { width:72px; height:72px; border-radius:14px; background:#eef6fb; display:flex; align-items:center; justify-content:center; font-size:38px; flex:0 0 auto; }
+  .onsite-head.has-photo { flex-direction:column; } /* [patch39e6004-site-copy-photo-help-v1] the real cart photo sits above the title */
+  .onsite-photo-img { display:block; width:100%; max-width:320px; height:auto; border-radius:14px; background:#eef6fb; }
   .onsite-title { font-family:'Nunito',sans-serif; font-weight:800; font-size:22px; color:var(--text); margin-bottom:4px; }
   .onsite-sub { font-size:14px; color:var(--sub); line-height:1.45; margin:4px 0; }
   .onsite-plain { text-align:center; padding:18px 4px; }
@@ -801,7 +803,7 @@
       <div class="card-title" id="content-choose-cart-title">Choose your cart</div>
       <div class="card-sub" id="content-choose-cart-subtitle">Luxury LSV rentals delivered to your door across the Charleston area.</div>
       <div data-marker="iop-not-wild-dunes-v1" style="margin-top:8px;padding:8px 10px;border-radius:8px;background:#fff7df;border:1px solid #f1c75b;color:#775500;font-size:13px;line-height:1.35;">
-        <strong id="content-iop-notice-title">Isle of Palms:</strong> <span id="content-iop-notice-body">rentals currently exclude Wild Dunes.</span>
+        <strong id="content-iop-notice-title">Isle of Palms:</strong> <span id="content-iop-notice-body">Wild Dunes deliveries are welcome — we arrange the gate pass for you.</span><!-- [patch39e6004-site-copy-photo-help-v1] static default matches the server default; the server copy still wins -->
       </div>
       <div class="cart-grid">
         <div class="cart-btn" id="btn4" onclick="selectCart('4seat')">
@@ -903,7 +905,7 @@
         <label class="form-label">Where would you like it delivered?</label>
         <div class="zone-grid" id="zone-grid">
           <div class="zone-pill" onclick="selectZone('Seabrook Island',99.99,this)">Seabrook Island<br><span class="zone-fee">$99.99 delivery</span></div>
-          <div class="zone-pill" onclick="selectZone('Isle of Palms',79.99,this)">Isle of Palms<br><span style="font-size:11px;font-weight:700;color:#b35c00;">Not Wild Dunes</span><br><span class="zone-fee">$79.99 delivery</span></div>
+          <div class="zone-pill" onclick="selectZone('Isle of Palms',79.99,this)">Isle of Palms<br><span style="font-size:11px;font-weight:700;color:#1d6fa5;">Wild Dunes welcome (gate pass arranged)</span><!-- [patch39e6004-site-copy-photo-help-v1] --><br><span class="zone-fee">$79.99 delivery</span></div>
           <div class="zone-pill" onclick="selectZone(&quot;Sullivan\'s Island&quot;,79.99,this)">Sullivan's Island<br><span class="zone-fee">$79.99 delivery</span></div>
           <div class="zone-pill" onclick="selectZone('Edisto Beach',99.99,this)">Edisto Beach<br><span class="zone-fee">$99.99 delivery</span></div>
           <div class="zone-pill" onclick="selectZone('Mt Pleasant',79.99,this)">Mt Pleasant<br><span class="zone-fee">$79.99 delivery</span></div>
@@ -1177,9 +1179,9 @@ let pricingLoadError = "";
 let calendarMonthOffset = 0;
 // SCHEDULEFLEET_PATCH_39B key/id contracts; never map by label/order
 const PUBLIC_BOOKING_VERSION = '3.9E.5.17.3';
-const CART_TYPE_IDS = Object.freeze({"4seat":"d81d5795-4e32-482d-8755-da32e84a15e4","6seat":"9717735e-96d9-4031-932d-53294ce3a733","6seat_gas":"e269aa19-5151-4c43-9b42-a5a1b26e3fef","6seat_wild_dunes":"33d0edab-ad75-4c97-bd4c-b8f9df2ec71f"});
+const CART_TYPE_IDS = Object.freeze({"4seat":"d81d5795-4e32-482d-8755-da32e84a15e4","6seat":"9717735e-96d9-4031-932d-53294ce3a733","6seat_gas":"e269aa19-5151-4c43-9b42-a5a1b26e3fef"}); // [patch39e6004-site-copy-photo-help-v1] the Wild Dunes product is retired (39e6002 A): Wild Dunes is a gate-pass delivery on the normal pools
 const REQUIRED_PUBLIC_CART_KEYS = Object.freeze(['4seat', '6seat']);
-const OPTIONAL_PUBLIC_CART_KEYS = Object.freeze(['6seat_gas', '6seat_wild_dunes']);
+const OPTIONAL_PUBLIC_CART_KEYS = Object.freeze(['6seat_gas']);
 
 function safePricingDiagnostics(payload, error = null) {
   const cartTypes = Array.isArray(payload?.cartTypes) ? payload.cartTypes : [];
@@ -1209,7 +1211,7 @@ function validatePublishedPricingPayload(payload) {
     const hasEnabledPrice = payload.durations.some(d => d?.cart_type_id === id && d?.enabled !== false && d?.price !== null && d?.price !== undefined);
     if (!hasEnabledPrice) throw Object.assign(new Error(`Published pricing has no enabled prices for ${key}`), { code:'PUBLIC_PRICING_REQUIRED_PRICE_MISSING' });
   }
-  // Gas and Wild Dunes are location-resolved optional products. Their absence
+  // Gas is a location-resolved optional product ([patch39e6004-site-copy-photo-help-v1]: Wild Dunes no longer is). Its absence
   // must never disable ordinary 4- and 6-passenger public checkout. When an
   // optional row is published, its stable ID still has to match.
   for (const key of OPTIONAL_PUBLIC_CART_KEYS) {
@@ -1310,7 +1312,7 @@ function tomorrowISODate() {
   const d = new Date(); d.setHours(12,0,0,0); d.setDate(d.getDate()+1); return localISODate(d);
 }
 function selectedProductLabel(key = state.cart_type) {
-  return key === '4seat' ? '4-Passenger' : key === '6seat_gas' ? '6-Seat Gas' : key === '6seat_wild_dunes' ? '6-Seat Wild Dunes' : '6-Passenger';
+  return key === '4seat' ? '4-Passenger' : key === '6seat_gas' ? '6-Seat Gas' : '6-Passenger'; // [patch39e6004-site-copy-photo-help-v1]
 }
 function selectedDateRange() {
   if (!state.start_date || !state.duration_days) return '';
@@ -1682,8 +1684,8 @@ function onDurChange() {
   updatePricePreview();
   document.getElementById('price-preview').className = 'price-preview visible';
 
-  // The actual inventory pool depends on the delivery address (standard, gas,
-  // or Wild Dunes), so Step 2 confirms the selection and Step 3 verifies stock.
+  // The actual inventory pool depends on the delivery address (standard or gas;
+  // Wild Dunes is deliverable on the normal pools, [patch39e6004-site-copy-photo-help-v1]), so Step 2 confirms the selection and Step 3 verifies stock.
   const bar = document.getElementById('avail-bar');
   bar.className = 'avail-bar ok';
   bar.style.display = '';
@@ -1726,8 +1728,7 @@ function onLocationAckChange() {
 function displayProductName(key) {
   if (key === '4seat') return '4-Passenger LSV';
   if (key === '6seat_gas') return '6-Seat Gas LSV';
-  if (key === '6seat_wild_dunes') return '6-Seat Wild Dunes LSV';
-  return '6-Passenger LSV';
+  return '6-Passenger LSV'; // [patch39e6004-site-copy-photo-help-v1] no Wild Dunes product name
 }
 function renderLocationRule(rule) {
   const box = document.getElementById('location-rule');
@@ -1740,6 +1741,7 @@ function renderLocationRule(rule) {
   }
   const cls = !rule.allowed && !rule.requires_ack ? 'block' : rule.rule === 'sealoft' ? 'warn' : 'info';
   box.className = `location-rule ${cls}`;
+  if (rule.rule === 'wild_dunes') { box.textContent = `🚪 ${rule.message} Both cart types are available; we'll arrange the gate pass.`; return; } // [patch39e6004-site-copy-photo-help-v1] info box, no cart-pool switch
   const assigned = rule.resolved_cart_type && rule.resolved_cart_type !== state.cart_type
     ? ` Assigned cart: ${displayProductName(rule.resolved_cart_type)}.` : '';
   box.textContent = rule.message + assigned;
@@ -1781,7 +1783,7 @@ function checkStep3() {
       const res = await fetch(`${API}/bookings/check-address?${p}`);
       const rule = await res.json();
       if (requestSeq !== locationRequestSeq) return;
-      const nextResolvedCartType = rule.resolved_cart_type || state.cart_type;
+      const nextResolvedCartType = rule.rule === 'wild_dunes' ? state.cart_type : (rule.resolved_cart_type || state.cart_type); // [patch39e6004-site-copy-photo-help-v1] Wild Dunes never switches the cart pool
       if (state.resolved_cart_type && state.resolved_cart_type !== nextResolvedCartType) {
         invalidateCheckoutState('resolved_cart_type_changed', { clearAvailability:true, saveDraft:false });
       }
@@ -2165,9 +2167,10 @@ function onsiteRenderLanding() {
     dayOptions.push(`<option value="${d}" ${ok ? '' : 'disabled'} ${ONSITE.days === d ? 'selected' : ''}>${d} day${d === 1 ? '' : 's'}${ok ? ` — ${fmtMoney(Number(c.pricing.total_by_days[String(d)]))}` : ' — not available'}</option>`);
   }
   const taken = (c.taken || []).map(t => `${onsiteFmtDate(t.start_date)} → ${onsiteFmtDate(t.end_date)}`);
+  const photoUrl = c.photo_url ? (String(c.photo_url).startsWith('http') ? String(c.photo_url) : `${API}${c.photo_url}`) : null; /* [patch39e6004-site-copy-photo-help-v1] 39e5129 B: the quote carries photo_url when a profile photo exists */
   onsiteRender(`
-    <div class="onsite-head">
-      <div class="onsite-photo" aria-hidden="true">🛺</div>
+    <div class="onsite-head${photoUrl ? ' has-photo' : ''}">
+      ${photoUrl ? `<img class="onsite-photo-img" src="${onsiteEsc(photoUrl)}" loading="lazy" alt="Cart #${onsiteEsc(c.cart.number)}" width="320" onerror="this.outerHTML='<div class=&quot;onsite-photo&quot; aria-hidden=&quot;true&quot;>🛺</div>'">` : `<div class="onsite-photo" aria-hidden="true">🛺</div>`}
       <div>
         <div class="onsite-title">Cart #${onsiteEsc(c.cart.number)} at ${onsiteEsc(c.site.name)}</div>
         <div class="onsite-sub">${onsiteEsc(c.site.address)}${c.cart.color ? ` · ${onsiteEsc(c.cart.color)}` : ''}${c.cart.seats ? ` · ${onsiteEsc(c.cart.seats)} seats` : ''}</div>
@@ -2330,8 +2333,36 @@ function onsiteRenderChecklist() {
       ${onsiteStep(st.key, 'Key code', keyExtra)}
       ${onsiteStep(st.after_video, 'After-video', st.after_video ? `<div class="onsite-sub">Thanks — your rental is closed.</div>` : (st.key ? onsiteVideoBlock('after', afterPrimary) : `<div class="onsite-sub">When your rental ends, record a quick after-video and put the key back in the lockbox.</div>`))}
     </div>
+    ${onsiteHelpBlock()}
     <div class="onsite-foot">Need a hand? Call or text <a href="${ONSITE_PHONE_TEL}">${onsiteEsc(ONSITE_PHONE)}</a>.</div>
   `);
+}
+// [patch39e6004-site-copy-photo-help-v1] 39e6001 D — Need help? → one line (≤ 300 chars) → POST /public/onsite/help?t= → the office gets a Telegram with the booking phone.
+function onsiteHelpBlock() {
+  const h = ONSITE.help || (ONSITE.help = { open: false, text: '', sending: false, sent: false, error: null });
+  if (h.sent) return `<div class="location-rule info" style="margin-top:12px">✅ Sent — we'll text you back.</div>`;
+  if (!h.open) return `<button class="btn-secondary onsite-btn" type="button" onclick="onsiteHelpOpen()">🆘 Need help?</button>`;
+  return `<div class="form-group" style="margin-top:12px"><label for="onsite-help-text">What do you need help with?</label>
+      <input type="text" id="onsite-help-text" maxlength="300" placeholder="e.g. The cart won't start" value="${onsiteEsc(h.text)}" oninput="onsiteHelpInput(this)" ${h.sending ? 'disabled' : ''}>
+      ${h.error ? `<div class="location-rule block" style="margin-top:8px">${onsiteEsc(h.error)}</div>` : ''}
+      <button class="btn-primary onsite-btn" type="button" id="onsite-help-send" onclick="onsiteHelpSend()" ${h.sending || !h.text.trim() ? 'disabled' : ''}>${h.sending ? 'Sending…' : 'Send'}</button>
+    </div>`;
+}
+function onsiteHelpOpen() { (ONSITE.help || (ONSITE.help = {})).open = true; onsiteRenderChecklist(); const el = document.getElementById('onsite-help-text'); if (el) el.focus(); }
+function onsiteHelpInput(el) { const h = ONSITE.help; h.text = String(el.value || '').slice(0, 300); const btn = document.getElementById('onsite-help-send'); if (btn) btn.disabled = !h.text.trim() || !!h.sending; }
+async function onsiteHelpSend() {
+  const h = ONSITE.help; const message = String(h.text || '').trim().slice(0, 300);
+  if (!message || h.sending) return;
+  h.sending = true; h.error = null; onsiteRenderChecklist();
+  try {
+    const r = await fetch(`${API}/public/onsite/help?t=${encodeURIComponent(ONSITE.token)}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ message }) });
+    const j = await r.json().catch(() => ({}));
+    if (r.status === 429) throw new Error(`You've sent 5 messages this hour — call or text ${ONSITE_PHONE} instead.`);
+    if (r.status === 401) throw new Error('This link has expired. Text us instead.');
+    if (!r.ok || !j.ok) throw new Error(j.error || `We couldn't send that (${r.status}). Please call or text us.`);
+    h.sent = true; h.text = '';
+  } catch (e) { h.error = e.message; }
+  finally { h.sending = false; onsiteRenderChecklist(); }
 }
 function onsiteFileChosen(kind, input) {
   const file = input?.files?.[0]; if (!file) return;
