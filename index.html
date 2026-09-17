@@ -707,6 +707,7 @@
   .onsite-photo-img { display:block; width:100%; max-width:320px; height:auto; border-radius:14px; background:#eef6fb; }
   .onsite-title { font-family:'Nunito',sans-serif; font-weight:800; font-size:22px; color:var(--text); margin-bottom:4px; }
   .onsite-sub { font-size:14px; color:var(--sub); line-height:1.45; margin:4px 0; }
+  .onsite-video-link { display:inline-block; font-weight:700; text-decoration:underline; margin-top:6px; } /* [patch39e6006-lockbox-set-code-electric-video-v1] */
   .onsite-plain { text-align:center; padding:18px 4px; }
   .onsite-btn { display:block; width:100%; text-align:center; margin-top:12px; text-decoration:none; box-sizing:border-box; }
   .onsite-btn.disabled { opacity:.55; pointer-events:none; }
@@ -2168,6 +2169,7 @@ function onsiteRenderLanding() {
   }
   const taken = (c.taken || []).map(t => `${onsiteFmtDate(t.start_date)} → ${onsiteFmtDate(t.end_date)}`);
   const photoUrl = c.photo_url ? (String(c.photo_url).startsWith('http') ? String(c.photo_url) : `${API}${c.photo_url}`) : null; /* [patch39e6004-site-copy-photo-help-v1] 39e5129 B: the quote carries photo_url when a profile photo exists */
+  const videoUrl = onsiteOperatingVideoUrl(c.operating_video_url); /* [patch39e6006-lockbox-set-code-electric-video-v1] "How to operate this cart" when the fleet posted one */
   onsiteRender(`
     <div class="onsite-head${photoUrl ? ' has-photo' : ''}">
       ${photoUrl ? `<img class="onsite-photo-img" src="${onsiteEsc(photoUrl)}" loading="lazy" alt="Cart #${onsiteEsc(c.cart.number)}" width="320" onerror="this.outerHTML='<div class=&quot;onsite-photo&quot; aria-hidden=&quot;true&quot;>🛺</div>'">` : `<div class="onsite-photo" aria-hidden="true">🛺</div>`}
@@ -2175,6 +2177,7 @@ function onsiteRenderLanding() {
         <div class="onsite-title">Cart #${onsiteEsc(c.cart.number)} at ${onsiteEsc(c.site.name)}</div>
         <div class="onsite-sub">${onsiteEsc(c.site.address)}${c.cart.color ? ` · ${onsiteEsc(c.cart.color)}` : ''}${c.cart.seats ? ` · ${onsiteEsc(c.cart.seats)} seats` : ''}</div>
         <div class="onsite-sub">Book this cart for your stay. No delivery: it's already here.</div>
+        {videoUrl ? `<a class="onsite-sub onsite-video-link" href="${onsiteEsc(videoUrl)}" target="_blank" rel="noopener">▶ How to operate this cart</a>` : ''} <!-- [patch39e6006-lockbox-set-code-electric-video-v1] -->
       </div>
     </div>
     <div id="onsite-notice" class="location-rule info" style="display:none"></div>
@@ -2192,7 +2195,7 @@ function onsiteRenderLanding() {
     <div class="form-group"><label for="onsite-email">Email</label><input type="email" id="onsite-email" placeholder="you@example.com" oninput="onsiteRefresh()"></div>
     <div class="form-group"><label for="onsite-phone">Mobile (we text you the key code)</label><input type="tel" id="onsite-phone" placeholder="(843) 555-0100" oninput="onsiteRefresh()"></div>
     <label class="onsite-check"><input type="checkbox" id="onsite-sms" checked> Text me my confirmation and key code</label>
-    <label class="onsite-check"><input type="checkbox" id="onsite-terms" onchange="onsiteRefresh()"> I agree to the rental terms and authorize GolfCart.Fun to keep my card on file and charge the daily rate for any day the cart is used after my rental ends, until I return the key and the lockbox code is changed.</label> <!-- [patch39e5123-onsite-card-on-file-usage-charges-v1] -->
+    <label class="onsite-check"><input type="checkbox" id="onsite-terms" onchange="onsiteRefresh()"> I agree to the rental terms and authorize GolfCart.Fun to keep my card on file and charge the daily rate for each day the cart is used after my rental ends.</label> <!-- [patch39e5123-onsite-card-on-file-usage-charges-v1] --> <!-- [patch39e6006-lockbox-set-code-electric-video-v1] rotation is no longer part of the close -->
     <button class="btn-primary onsite-btn" id="onsite-pay" onclick="onsitePay()" disabled>🔒 Book this cart — pay now</button>
     <div class="onsite-foot">Every price shown is what you'll be charged: rental + ${Math.round(Number(c.pricing?.surcharge_rate ?? 0.03) * 100)}% surcharge + ${Math.round(Number(c.pricing?.tax_rate ?? 0.09) * 100)}% SC sales tax. Questions? <a href="${ONSITE_PHONE_TEL}">${onsiteEsc(ONSITE_PHONE)}</a></div>
   `);
@@ -2322,9 +2325,11 @@ function onsiteRenderChecklist() {
     ? `<div class="onsite-key">Lockbox code <strong>${onsiteEsc(s.key_code)}</strong> — windshield box. Plug the cart in each night.</div><div class="onsite-sub">We've also texted it to you.</div><div class="onsite-sub">Your card stays on file. Days the cart is used after ${onsiteFmtDate(b.end_date)} are charged at the day rate.</div>` /* [patch39e5123-onsite-card-on-file-usage-charges-v1] */
     : (st.before_video && st.waiver_signed && st.paid ? `<div class="onsite-sub">Your code appears on ${onsiteFmtDate(b.start_date)} once the waiver and video are done.</div>` : `<div class="onsite-sub">Appears after the waiver and walk-around video, on ${onsiteFmtDate(b.start_date)}.</div>`);
   const afterPrimary = next === 'after_video';
+  const videoUrl = onsiteOperatingVideoUrl(s.operating_video_url); /* [patch39e6006-lockbox-set-code-electric-video-v1] */
   onsiteRender(`
     <div class="onsite-title">${title}</div>
     <div class="onsite-sub">${onsiteEsc(b.ref || '')} · ${onsiteFmtDate(b.start_date)} → ${onsiteFmtDate(b.end_date)}${b.site_address ? ` · ${onsiteEsc(b.site_address)}` : ''}</div>
+    ${videoUrl ? `<a class="btn-secondary onsite-btn" href="${onsiteEsc(videoUrl)}" target="_blank" rel="noopener">▶ How to operate this cart</a>` : ''}
     ${(s.messages || []).map(m => `<div class="location-rule info">${onsiteEsc(m)}</div>`).join('')}
     <div class="onsite-steps">
       ${onsiteStep(st.paid, 'Paid', st.paid ? '' : `<div class="onsite-sub">We're waiting on your payment. If you just paid, this updates in a moment.</div>`)}
@@ -2337,6 +2342,8 @@ function onsiteRenderChecklist() {
     <div class="onsite-foot">Need a hand? Call or text <a href="${ONSITE_PHONE_TEL}">${onsiteEsc(ONSITE_PHONE)}</a>.</div>
   `);
 }
+// [patch39e6006-lockbox-set-code-electric-video-v1] operating_video_url is a /play link from the API (absolute), or a relative path on an older build; null when the fleet has not posted one.
+function onsiteOperatingVideoUrl(u) { if (!u) return null; const v = String(u); return v.startsWith('http') ? v : `${API}${v}`; }
 // [patch39e6004-site-copy-photo-help-v1] 39e6001 D — Need help? → one line (≤ 300 chars) → POST /public/onsite/help?t= → the office gets a Telegram with the booking phone.
 function onsiteHelpBlock() {
   const h = ONSITE.help || (ONSITE.help = { open: false, text: '', sending: false, sent: false, error: null });
