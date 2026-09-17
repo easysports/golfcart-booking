@@ -1103,8 +1103,11 @@
   </div>
 </footer>
 
-<script src="./checkoutStateIntegrity39E5171.js"></script>
-<script src="./buildIdentity39E5172.js"></script>
+<!-- [patch39e6015-restore-c-path-parse-v1] root-absolute so /c/<n> loads them from the root, not /c/<n>/…; the vercel.json rewrite serves index.html
+     for a relative ./ path (200 text/html), which left ScheduleFleetCheckoutStateIntegrity39E5171 undefined and threw at
+     the top of the inline script (line ~1342), so the on-site path parse in onsiteBoot never ran. -->
+<script src="/checkoutStateIntegrity39E5171.js"></script>
+<script src="/buildIdentity39E5172.js"></script>
 <script>
 // ── CONFIG ───────────────────────────────────────────────────────────────────
 const API = 'https://studops-api.onrender.com';
