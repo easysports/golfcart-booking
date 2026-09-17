@@ -1,0 +1,45 @@
+# [chore39e6010-site-check-ci] The booking site is one index.html with an inline script. A syntax error in that script
+# takes the whole page down (c82422d shipped one: a template literal missing its $). This job parses every inline
+# <script> block with node --check and trips on a `{name ?` that is not `${name ?` before anything reaches Vercel.
+name: site-check
+on:
+  push:
+  pull_request:
+jobs:
+  inline-script:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Extract the inline <script> blocks and node --check each
+        run: |
+          node - <<'JS'
+          const fs = require("fs"), os = require("os"), path = require("path");
+          const { spawnSync } = require("child_process");
+          const html = fs.readFileSync("index.html", "utf8");
+          const blocks = [];
+          const re = /<script\b([^>]*)>([\s\S]*?)<\/script>/gi;
+          let m;
+          while ((m = re.exec(html))) { if (!/\bsrc\s*=/i.test(m[1]) && m[2].trim()) blocks.push({ at: html.slice(0, m.index).split("\n").length, code: m[2] }); }
+          if (!blocks.length) { console.error("no inline <script> block found in index.html"); process.exit(1); }
+          const dir = fs.mkdtempSync(path.join(os.tmpdir(), "site-check-"));
+          let failed = 0;
+          blocks.forEach((b, i) => {
+            const file = path.join(dir, `inline-${i + 1}.js`);
+            fs.writeFileSync(file, b.code);
+            const r = spawnSync(process.execPath, ["--check", file], { encoding: "utf8" });
+            if (r.status === 0) console.log(`ok: inline script ${i + 1} (index.html line ${b.at}, ${b.code.split("\n").length} lines)`);
+            else { failed++; console.error(`SYNTAX ERROR in inline script ${i + 1} (starts at index.html line ${b.at}):\n${r.stderr}`); }
+          });
+          process.exit(failed ? 1 : 0);
+          JS
+      - name: Tripwire — a template placeholder missing its $
+        run: |
+          # `{videoUrl ? ... : ...}` inside a backtick template is literal text and its inner backtick closes the
+          # template. Any `{name ?` not written as `${name ?` fails the job. Keep it simple: one grep over index.html.
+          if grep -nE '[^$]\{[a-zA-Z_][a-zA-Z_0-9]* \?' index.html; then
+            echo "::error::found a {name ? ...} placeholder without its \$ (see lines above)"; exit 1
+          fi
+          echo "ok: no {name ? placeholder without \$"
