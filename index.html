@@ -2127,8 +2127,13 @@ async function onsiteLanding(cartNumber) {
     return;
   }
   ONSITE.card = card;
+  if (card.bookable === false || card.hold?.on_hold) { /* [patch39e5127-evening-batch-v1] on hold: the server message, no picker, no price */
+    onsitePlainCard('This cart is temporarily unavailable.', onsiteEsc(card.message || `Text us at ${ONSITE_PHONE}.`));
+    return;
+  }
   ONSITE.start = null; ONSITE.days = null;
-  const priced = (card.pricing?.priced_days || []).map(Number).sort((a, b) => a - b);
+  const minDays = Number(card.min_days || 1); /* [patch39e5127-evening-batch-v1] server-driven minimum (2 today); "1" never renders */
+  const priced = (card.pricing?.priced_days || []).map(Number).filter(d => d >= minDays).sort((a, b) => a - b);
   ONSITE.days = priced[0] || null;
   onsiteRenderLanding();
 }
@@ -2151,10 +2156,11 @@ function onsiteDatesFree() {
 }
 function onsiteRenderLanding() {
   const c = ONSITE.card;
-  const priced = (c.pricing?.priced_days || []).map(Number).sort((a, b) => a - b);
+  const minDays = Number(c.min_days || 1), maxDays = Number(c.max_days || 7); /* [patch39e5127-evening-batch-v1] */
+  const priced = (c.pricing?.priced_days || []).map(Number).filter(d => d >= minDays).sort((a, b) => a - b);
   const min = onsiteTodayISO(), max = onsiteISOPlus(60);
   const dayOptions = [];
-  for (let d = Number(c.min_days || 1); d <= Number(c.max_days || 7); d++) {
+  for (let d = minDays; d <= maxDays; d++) {
     const ok = priced.includes(d);
     dayOptions.push(`<option value="${d}" ${ok ? '' : 'disabled'} ${ONSITE.days === d ? 'selected' : ''}>${d} day${d === 1 ? '' : 's'}${ok ? ` — ${fmtMoney(Number(c.pricing.total_by_days[String(d)]))}` : ' — not available'}</option>`);
   }
@@ -2171,7 +2177,7 @@ function onsiteRenderLanding() {
     <div id="onsite-notice" class="location-rule info" style="display:none"></div>
     <div class="form-group"><label for="onsite-date">First day</label>
       <input type="date" id="onsite-date" min="${min}" max="${max}" value="${ONSITE.start || ''}" onchange="onsiteOnDate()"></div>
-    <div class="form-group"><label for="onsite-days">How many days (1–7)</label>
+    <div class="form-group"><label for="onsite-days">How many days (${minDays}–${maxDays})</label>
       <select id="onsite-days" onchange="onsiteOnDays()">${dayOptions.join('')}</select></div>
     ${taken.length ? `<div class="onsite-taken">Already booked: ${taken.map(onsiteEsc).join(' · ')}</div>` : ''}
     <div id="onsite-price" class="onsite-price"></div>
@@ -2240,6 +2246,11 @@ async function onsitePay() {
       }),
     });
     const data = await res.json().catch(() => ({}));
+    if (res.status === 409 && data.code === 'ONSITE_CART_ON_HOLD') { /* [patch39e5127-evening-batch-v1] */
+      onsitePlainCard('This cart is temporarily unavailable.', onsiteEsc(data.message || `Text us at ${ONSITE_PHONE}.`));
+      return;
+    }
+    if (res.status === 400 && data.code === 'ONSITE_DAYS_OUT_OF_RANGE') { onsiteNotice('block', data.error || `${data.min_days || 2}-day minimum`); return; }
     if (res.status === 409 && data.code === 'ONSITE_CART_TAKEN') {
       if (Array.isArray(data.taken)) ONSITE.card.taken = data.taken;
       else { try { const r = await fetch(`${API}/public/onsite/cart/${encodeURIComponent(ONSITE.cartNumber)}`, { cache: 'no-store' }); if (r.ok) ONSITE.card = await r.json(); } catch (_) {} }
@@ -2273,6 +2284,7 @@ async function onsiteRefreshStatus(first) {
   try {
     const r = await fetch(`${API}/public/onsite/status?t=${encodeURIComponent(ONSITE.token)}`, { cache: 'no-store' });
     if (r.status === 401) { if (ONSITE.poll) clearInterval(ONSITE.poll); ONSITE.status = null; onsitePlainCard('This link has expired.', `Text us at <strong>${onsiteEsc(ONSITE_PHONE)}</strong> and we'll send a fresh one.`); return; }
+    if (r.status === 409) { const d = await r.json().catch(() => ({})); if (d.code === 'ONSITE_CART_ON_HOLD') { if (ONSITE.poll) clearInterval(ONSITE.poll); onsitePlainCard('This cart is temporarily unavailable.', onsiteEsc(d.message || `Text us at ${ONSITE_PHONE}.`)); return; } } /* [patch39e5127-evening-batch-v1] */
     if (!r.ok) { if (first) onsitePlainCard(`We can't load your rental right now.`, `Try again in a minute, or text <strong>${onsiteEsc(ONSITE_PHONE)}</strong>.`); return; }
     ONSITE.status = await r.json();
     onsiteRenderChecklist();
